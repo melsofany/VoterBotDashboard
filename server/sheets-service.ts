@@ -174,7 +174,7 @@ export async function getAllVoters(): Promise<Voter[]> {
       stance: row[7] || 'neutral',
       idCardImageUrl: row[8] || null,
       representativeId: row[9] || '',
-      representativeName: row[10] || null,
+      representativeName: null, // Name is not stored in voters sheet
       createdAt: row[10] ? new Date(row[10]) : new Date(),
     }));
   } catch (error) {

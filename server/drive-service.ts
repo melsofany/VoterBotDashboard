@@ -23,26 +23,18 @@ export async function uploadImageToDrive(
     const response = await drive.files.create({
       requestBody: fileMetadata,
       media: media,
-      fields: 'id, webViewLink, webContentLink'
+      fields: 'id, webViewLink'
     });
 
-    // Make the file publicly accessible
-    await drive.permissions.create({
-      fileId: response.data.id!,
-      requestBody: {
-        role: 'reader',
-        type: 'anyone'
-      }
-    });
-
-    // Get the direct link
-    const file = await drive.files.get({
-      fileId: response.data.id!,
-      fields: 'webContentLink'
-    });
-
-    console.log('✅ Image uploaded to Google Drive:', nationalId);
-    return file.data.webContentLink || `https://drive.google.com/file/d/${response.data.id}/view`;
+    // DO NOT make files public - keep them private for security
+    // Only authorized users with Google account access can view
+    
+    // Return a secure view link that requires authentication
+    const fileId = response.data.id!;
+    const secureViewLink = `https://drive.google.com/file/d/${fileId}/view`;
+    
+    console.log('✅ Image uploaded to Google Drive (private):', nationalId);
+    return secureViewLink;
   } catch (error) {
     console.error('❌ Error uploading to Drive:', error);
     throw error;
