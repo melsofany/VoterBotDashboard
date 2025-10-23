@@ -7,12 +7,31 @@ const REPS_SHEET = 'Representatives';
 
 export async function initializeSheets() {
   try {
+    if (!SHEET_ID) {
+      throw new Error('GOOGLE_SHEET_ID environment variable is not set. Please create a Google Sheet and add its ID to your environment variables.');
+    }
+
     const sheets = await getUncachableGoogleSheetClient();
     
     // Check if sheets exist, create if they don't
-    const response = await sheets.spreadsheets.get({
-      spreadsheetId: SHEET_ID,
-    });
+    let response;
+    try {
+      response = await sheets.spreadsheets.get({
+        spreadsheetId: SHEET_ID,
+      });
+    } catch (error: any) {
+      if (error.code === 404) {
+        throw new Error(
+          `Google Sheet with ID "${SHEET_ID}" not found.\n\n` +
+          'Please make sure:\n' +
+          '1. The Google Sheet exists in your Google Drive\n' +
+          '2. You have shared the sheet with the Google Sheets API\n' +
+          '3. The GOOGLE_SHEET_ID in your environment is correct\n\n' +
+          'Sheet ID should look like: 1abc123XYZ...'
+        );
+      }
+      throw error;
+    }
 
     const existingSheets = response.data.sheets?.map(s => s.properties?.title) || [];
     
@@ -79,8 +98,10 @@ export async function initializeSheets() {
     }
 
     console.log('✅ Google Sheets initialized successfully');
-  } catch (error) {
-    console.error('❌ Error initializing sheets:', error);
+    console.log(`📊 Sheet ID: ${SHEET_ID}`);
+    console.log(`📝 Sheets created/verified: ${VOTERS_SHEET}, ${REPS_SHEET}`);
+  } catch (error: any) {
+    console.error('❌ Error initializing sheets:', error.message || error);
     throw error;
   }
 }

@@ -60,7 +60,23 @@ GOOGLE_DRIVE_FOLDER_ID=...
 
 ## إعداد Google Sheets
 
-يجب إنشاء ورقتين في ملف Google Sheets:
+### خطوات الإعداد:
+
+1. **إنشاء Google Sheet جديد**:
+   - افتح https://sheets.google.com
+   - أنشئ ملف جديد (Blank Spreadsheet)
+   - انسخ الـ ID من الرابط (الجزء بين /d/ و /edit)
+   - أضفه في متغير البيئة GOOGLE_SHEET_ID
+
+2. **مشاركة الملف**:
+   - اضغط على "Share" في الزاوية اليمنى
+   - تأكد أن الملف "Anyone with the link can view"
+   - أو قم بمشاركته مع الحساب المستخدم في Google Sheets Integration
+
+3. **إضافة معرفات المناديب**:
+   - البوت سيقوم تلقائياً بإنشاء ورقتين: "Voters" و "Representatives"
+   - بعد التشغيل الأول، افتح ورقة "Representatives"
+   - أضف معرفات المناديب بهذا الشكل:
 
 ### ورقة "Representatives"
 | user_id   | name        |
@@ -68,8 +84,10 @@ GOOGLE_DRIVE_FOLDER_ID=...
 | 123456789 | أحمد محمد   |
 | 987654321 | محمود علي   |
 
+**ملاحظة**: لمعرفة User ID الخاص بك في تيليجرام، أرسل رسالة لـ @userinfobot
+
 ### ورقة "Voters"
-يتم ملؤها تلقائياً من البوت
+يتم ملؤها تلقائياً من البوت (لا تقم بتعديلها يدوياً)
 
 ## التشغيل
 
