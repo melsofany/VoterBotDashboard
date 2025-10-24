@@ -47,16 +47,16 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
   try {
     console.log('🔍 Starting OCR processing...');
     
-    const processedImage = await preprocessImage(imageBuffer);
-    
-    const worker = await createWorker('ara+eng', 1, {
+    const worker = await createWorker('ara', 1, {
       logger: () => {}
     });
     
     await worker.setParameters({
-      tessedit_char_whitelist: '٠١٢٣٤٥٦٧٨٩0123456789 \nأبتثجحخدذرزسشصضطظعغفقكلمنهويءآإئؤةى',
+      tessedit_pageseg_mode: '6',
+      preserve_interword_spaces: '1',
     });
     
+    const processedImage = await preprocessImage(imageBuffer);
     const { data: { text } } = await worker.recognize(processedImage);
     
     await worker.terminate();
@@ -111,19 +111,39 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
       }
     }
 
-    const lines = normalizedText.split('\n').filter(line => line.trim());
+    const lines = text.split('\n').filter(line => line.trim());
     let fullName: string | null = null;
 
+    const namePatterns = [
+      /([أ-ي\s]{6,})/g,
+    ];
+
     for (const line of lines) {
-      if (/[\u0600-\u06FF]/.test(line) && line.length > 5) {
-        const arabicWords = line.match(/[\u0600-\u06FF\s]+/g);
-        if (arabicWords && arabicWords[0].trim().length > 5) {
-          const name = arabicWords[0].trim();
-          if (!name.includes('مصر') && !name.includes('جمهورية') && !name.includes('محافظة')) {
-            fullName = name;
-            break;
+      if (/[\u0600-\u06FF]/.test(line)) {
+        for (const pattern of namePatterns) {
+          const matches = line.match(pattern);
+          if (matches) {
+            for (const match of matches) {
+              const cleanName = match.trim();
+              const words = cleanName.split(/\s+/);
+              
+              if (words.length >= 2 && words.length <= 7 && 
+                  cleanName.length >= 6 &&
+                  !cleanName.includes('مصر') && 
+                  !cleanName.includes('جمهورية') && 
+                  !cleanName.includes('محافظة') &&
+                  !cleanName.includes('بطاقة') &&
+                  !cleanName.includes('العربية') &&
+                  !/\d/.test(cleanName)) {
+                fullName = cleanName;
+                console.log('✅ Found name:', fullName);
+                break;
+              }
+            }
+            if (fullName) break;
           }
         }
+        if (fullName) break;
       }
     }
 

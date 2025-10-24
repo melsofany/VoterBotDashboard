@@ -8,7 +8,7 @@ import sharp from 'sharp';
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 
 interface UserSession {
-  step: 'idle' | 'awaiting_photo' | 'awaiting_location' | 'awaiting_family' | 'awaiting_phone' | 'awaiting_stance';
+  step: 'idle' | 'awaiting_photo' | 'awaiting_data_confirmation' | 'awaiting_manual_national_id' | 'awaiting_manual_name' | 'awaiting_location' | 'awaiting_family' | 'awaiting_phone' | 'awaiting_stance';
   nationalId?: string;
   fullName?: string;
   photoBuffer?: Buffer;
@@ -114,23 +114,21 @@ export async function startTelegramBot() {
       session.nationalId = ocrResult.nationalId;
       session.fullName = ocrResult.fullName || 'غير محدد';
       session.photoBuffer = photoBuffer;
-      session.step = 'awaiting_location';
+      session.step = 'awaiting_data_confirmation';
 
       await bot.sendMessage(
         chatId,
-        '✅ تم استخراج البيانات بنجاح!\n\n' +
+        '✅ تم استخراج البيانات!\n\n' +
         `📋 الرقم القومي: ${ocrResult.nationalId}\n` +
         `👤 الاسم: ${ocrResult.fullName || 'غير محدد'}\n\n` +
-        '📍 الخطوة التالية:\n' +
-        'شارك موقع الناخب الحالي',
+        '⚠️ يرجى التحقق من صحة البيانات:',
         {
           reply_markup: {
-            keyboard: [
-              [{ text: '📍 مشاركة الموقع', request_location: true }],
-              [{ text: '⏭️ تخطي الموقع' }],
-              [{ text: '❌ إلغاء' }]
-            ],
-            resize_keyboard: true
+            inline_keyboard: [
+              [{ text: '✅ البيانات صحيحة', callback_data: 'confirm_data' }],
+              [{ text: '✏️ تعديل الرقم القومي', callback_data: 'edit_national_id' }],
+              [{ text: '✏️ تعديل الاسم', callback_data: 'edit_name' }]
+            ]
           }
         }
       );
@@ -208,6 +206,68 @@ export async function startTelegramBot() {
 
     if (!session) return;
 
+    // Handle manual national ID
+    if (session.step === 'awaiting_manual_national_id') {
+      const nationalIdRegex = /^\d{14}$/;
+      if (!nationalIdRegex.test(text)) {
+        await bot.sendMessage(
+          chatId,
+          '⚠️ الرقم القومي غير صحيح\n\nيجب أن يكون 14 رقم بالضبط'
+        );
+        return;
+      }
+
+      session.nationalId = text;
+      session.step = 'awaiting_data_confirmation';
+
+      await bot.sendMessage(
+        chatId,
+        '✅ تم تحديث الرقم القومي!\n\n' +
+        `📋 الرقم القومي: ${session.nationalId}\n` +
+        `👤 الاسم: ${session.fullName}\n\n` +
+        'هل البيانات صحيحة الآن؟',
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '✅ البيانات صحيحة', callback_data: 'confirm_data' }],
+              [{ text: '✏️ تعديل الرقم القومي', callback_data: 'edit_national_id' }],
+              [{ text: '✏️ تعديل الاسم', callback_data: 'edit_name' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+
+    // Handle manual name
+    if (session.step === 'awaiting_manual_name') {
+      if (text.length < 3) {
+        await bot.sendMessage(chatId, '⚠️ يرجى إدخال اسم صحيح (على الأقل 3 أحرف)');
+        return;
+      }
+
+      session.fullName = text;
+      session.step = 'awaiting_data_confirmation';
+
+      await bot.sendMessage(
+        chatId,
+        '✅ تم تحديث الاسم!\n\n' +
+        `📋 الرقم القومي: ${session.nationalId}\n` +
+        `👤 الاسم: ${session.fullName}\n\n` +
+        'هل البيانات صحيحة الآن؟',
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '✅ البيانات صحيحة', callback_data: 'confirm_data' }],
+              [{ text: '✏️ تعديل الرقم القومي', callback_data: 'edit_national_id' }],
+              [{ text: '✏️ تعديل الاسم', callback_data: 'edit_name' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+
     // Handle family name
     if (session.step === 'awaiting_family') {
       if (text.length < 2) {
@@ -272,12 +332,75 @@ export async function startTelegramBot() {
     }
   });
 
-  // Handle stance selection
+  // Handle callback queries
   bot.on('callback_query', async (query) => {
     const chatId = query.message!.chat.id;
     const session = sessions.get(chatId);
 
-    if (!session || session.step !== 'awaiting_stance' || !query.data?.startsWith('stance_')) {
+    if (!session || !query.data) {
+      return;
+    }
+
+    // Handle data confirmation
+    if (query.data === 'confirm_data' && session.step === 'awaiting_data_confirmation') {
+      await bot.answerCallbackQuery(query.id, { text: 'البيانات صحيحة ✅' });
+      session.step = 'awaiting_location';
+      
+      await bot.sendMessage(
+        chatId,
+        '📍 الخطوة التالية:\nشارك موقع الناخب الحالي',
+        {
+          reply_markup: {
+            keyboard: [
+              [{ text: '📍 مشاركة الموقع', request_location: true }],
+              [{ text: '⏭️ تخطي الموقع' }],
+              [{ text: '❌ إلغاء' }]
+            ],
+            resize_keyboard: true
+          }
+        }
+      );
+      return;
+    }
+
+    // Handle edit national ID
+    if (query.data === 'edit_national_id' && session.step === 'awaiting_data_confirmation') {
+      await bot.answerCallbackQuery(query.id, { text: 'أدخل الرقم القومي' });
+      session.step = 'awaiting_manual_national_id';
+      
+      await bot.sendMessage(
+        chatId,
+        '✏️ أدخل الرقم القومي الصحيح (14 رقم):',
+        {
+          reply_markup: {
+            keyboard: [[{ text: '❌ إلغاء' }]],
+            resize_keyboard: true
+          }
+        }
+      );
+      return;
+    }
+
+    // Handle edit name
+    if (query.data === 'edit_name' && session.step === 'awaiting_data_confirmation') {
+      await bot.answerCallbackQuery(query.id, { text: 'أدخل الاسم' });
+      session.step = 'awaiting_manual_name';
+      
+      await bot.sendMessage(
+        chatId,
+        '✏️ أدخل الاسم الكامل للناخب:',
+        {
+          reply_markup: {
+            keyboard: [[{ text: '❌ إلغاء' }]],
+            resize_keyboard: true
+          }
+        }
+      );
+      return;
+    }
+
+    // Handle stance selection
+    if (!query.data.startsWith('stance_') || session.step !== 'awaiting_stance') {
       return;
     }
 
