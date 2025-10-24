@@ -44,3 +44,4 @@ waitForPort = 5000
 
 [agent]
 integrations = ["google-drive:1.0.0", "google-sheet:1.0.0"]
+expertMode = true
