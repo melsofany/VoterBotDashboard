@@ -1,5 +1,6 @@
 import { createWorker } from 'tesseract.js';
 import sharp from 'sharp';
+import { decodeEgyptianID, type DecodedEgyptianID } from './egyptian-id-decoder';
 
 const HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN;
 
@@ -14,6 +15,7 @@ export interface OCRResult {
   fullName: string | null;
   address: string | null;
   text: string;
+  decodedInfo: DecodedEgyptianID | null;
 }
 
 function convertArabicNumeralsToLatin(text: string): string {
@@ -316,13 +318,28 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
       }
     }
 
-    console.log('✅ OCR Results:', { nationalId, fullName, address });
+    let decodedInfo: DecodedEgyptianID | null = null;
+    if (nationalId) {
+      decodedInfo = decodeEgyptianID(nationalId);
+      if (decodedInfo.isValid) {
+        console.log('✅ Decoded ID Info:', {
+          birthDate: decodedInfo.birthDate,
+          governorate: decodedInfo.governorate,
+          gender: decodedInfo.gender
+        });
+      } else {
+        console.log('⚠️ National ID could not be decoded or is invalid');
+      }
+    }
+
+    console.log('✅ OCR Results:', { nationalId, fullName, address, decodedInfo });
 
     return {
       nationalId,
       fullName,
       address,
-      text: text.substring(0, 500)
+      text: text.substring(0, 500),
+      decodedInfo
     };
   } catch (error) {
     console.error('❌ OCR Error:', error);
@@ -330,7 +347,8 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
       nationalId: null,
       fullName: null,
       address: null,
-      text: ''
+      text: '',
+      decodedInfo: null
     };
   }
 }

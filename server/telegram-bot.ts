@@ -117,12 +117,31 @@ export async function startTelegramBot() {
       session.photoBuffer = photoBuffer;
       session.step = 'awaiting_data_confirmation';
 
+      // Build message with decoded information
+      let message = '✅ تم استخراج البيانات!\n\n';
+      message += `📋 الرقم القومي: ${ocrResult.nationalId}\n`;
+      message += `👤 الاسم: ${ocrResult.fullName || 'غير محدد'}\n`;
+      
+      // Add decoded information if available
+      if (ocrResult.decodedInfo && ocrResult.decodedInfo.isValid) {
+        message += '\n🔍 معلومات إضافية من الرقم القومي:\n';
+        if (ocrResult.decodedInfo.birthDate) {
+          message += `📅 تاريخ الميلاد: ${ocrResult.decodedInfo.birthDate}\n`;
+        }
+        if (ocrResult.decodedInfo.governorate) {
+          message += `📍 المحافظة: ${ocrResult.decodedInfo.governorate}\n`;
+        }
+        if (ocrResult.decodedInfo.gender) {
+          const genderText = ocrResult.decodedInfo.gender === 'male' ? 'ذكر' : 'أنثى';
+          message += `👤 النوع: ${genderText}\n`;
+        }
+      }
+      
+      message += '\n⚠️ يرجى التحقق من صحة البيانات:';
+
       await bot.sendMessage(
         chatId,
-        '✅ تم استخراج البيانات!\n\n' +
-        `📋 الرقم القومي: ${ocrResult.nationalId}\n` +
-        `👤 الاسم: ${ocrResult.fullName || 'غير محدد'}\n\n` +
-        '⚠️ يرجى التحقق من صحة البيانات:',
+        message,
         {
           reply_markup: {
             inline_keyboard: [
