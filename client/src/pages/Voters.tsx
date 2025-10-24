@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,14 +12,49 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getAuthToken } from "@/lib/queryClient";
 
 export default function Voters() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedVoter, setSelectedVoter] = useState<Voter | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const { data: voters = [], isLoading } = useQuery<Voter[]>({
     queryKey: ["/api/voters"],
   });
+
+  useEffect(() => {
+    if (selectedVoter?.idCardImageUrl) {
+      const loadImage = async () => {
+        try {
+          const token = getAuthToken();
+          const response = await fetch(`/api/voters/${selectedVoter.id}/card-image`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            setImageUrl(url);
+          }
+        } catch (error) {
+          console.error('Failed to load image:', error);
+        }
+      };
+      
+      loadImage();
+      
+      return () => {
+        if (imageUrl) {
+          URL.revokeObjectURL(imageUrl);
+        }
+      };
+    } else {
+      setImageUrl(null);
+    }
+  }, [selectedVoter]);
 
   const filteredVoters = voters.filter((voter) => {
     const search = searchTerm.toLowerCase();
@@ -161,12 +196,18 @@ export default function Voters() {
               {/* ID Card Image */}
               {selectedVoter.idCardImageUrl && (
                 <div className="overflow-hidden rounded-lg border">
-                  <img
-                    src={`/api/voters/${selectedVoter.id}/card-image`}
-                    alt="بطاقة الناخب"
-                    className="h-auto w-full object-contain"
-                    data-testid="img-voter-id-card"
-                  />
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt="بطاقة الناخب"
+                      className="h-auto w-full object-contain"
+                      data-testid="img-voter-id-card"
+                    />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center bg-muted">
+                      <p className="text-muted-foreground">جاري تحميل الصورة...</p>
+                    </div>
+                  )}
                 </div>
               )}
 
