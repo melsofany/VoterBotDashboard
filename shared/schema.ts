@@ -55,6 +55,11 @@ export interface DashboardStats {
   neutral: number;
   todayCount: number;
   representativesCount: number;
+  elderlyCount: number;
+  elderlyMales: number;
+  elderlyFemales: number;
+  totalMales: number;
+  totalFemales: number;
 }
 
 export interface RepresentativePerformance extends Representative {
@@ -62,4 +67,9 @@ export interface RepresentativePerformance extends Representative {
   supportersCount: number;
   opponentsCount: number;
   neutralCount: number;
+  elderlyCount: number;
+  elderlyMales: number;
+  elderlyFemales: number;
+  malesCount: number;
+  femalesCount: number;
 }

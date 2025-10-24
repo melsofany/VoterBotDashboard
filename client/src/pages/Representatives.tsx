@@ -24,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Users, ThumbsUp, ThumbsDown, Minus, Calendar, Plus, Edit, Trash2 } from "lucide-react";
+import { Users, ThumbsUp, ThumbsDown, Minus, Calendar, Plus, Edit, Trash2, UserCheck, Car } from "lucide-react";
 import { RepresentativePerformance } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -382,6 +382,48 @@ export default function Representatives() {
                     <p className="mt-2 text-right text-sm font-bold text-chart-2">
                       {((rep.supportersCount / rep.votersCount) * 100).toFixed(1)}%
                     </p>
+                  </div>
+                )}
+
+                {/* Elderly Statistics */}
+                {rep.votersCount > 0 && (
+                  <div className="space-y-3 rounded-lg border bg-orange-50 dark:bg-orange-950/20 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                        <span className="text-xs font-medium text-orange-800 dark:text-orange-300">
+                          كبار السن (60+)
+                        </span>
+                      </div>
+                      <span className="text-lg font-bold text-orange-700 dark:text-orange-300">
+                        {rep.elderlyCount}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-blue-600 dark:text-blue-400">ذكور: {rep.elderlyMales}</span>
+                      <span className="text-pink-600 dark:text-pink-400">إناث: {rep.elderlyFemales}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Car className="h-3 w-3" />
+                      <span>
+                        السيارات المطلوبة: {Math.ceil(rep.elderlyCount / 4)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Gender Distribution */}
+                {rep.votersCount > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">توزيع الجنس</p>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-blue-600 dark:text-blue-400">
+                        ذكور: {rep.malesCount}
+                      </span>
+                      <span className="text-pink-600 dark:text-pink-400">
+                        إناث: {rep.femalesCount}
+                      </span>
+                    </div>
                   </div>
                 )}
               </CardContent>

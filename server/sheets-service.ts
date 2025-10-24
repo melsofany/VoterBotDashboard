@@ -1,5 +1,7 @@
 import { getUncachableGoogleSheetClient } from './google-services';
 import { Voter, Representative, DashboardStats, RepresentativePerformance } from '@shared/schema';
+import { decodeEgyptianID } from './egyptian-id-decoder';
+import { calculateAge, isElderly } from './age-calculator';
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID!;
 const VOTERS_SHEET = 'Voters';
@@ -250,6 +252,33 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    let elderlyCount = 0;
+    let elderlyMales = 0;
+    let elderlyFemales = 0;
+    let totalMales = 0;
+    let totalFemales = 0;
+
+    voters.forEach(voter => {
+      const decoded = decodeEgyptianID(voter.nationalId);
+      
+      if (decoded.isValid) {
+        if (decoded.gender === 'male') {
+          totalMales++;
+        } else if (decoded.gender === 'female') {
+          totalFemales++;
+        }
+
+        if (decoded.birthDate && isElderly(decoded.birthDate)) {
+          elderlyCount++;
+          if (decoded.gender === 'male') {
+            elderlyMales++;
+          } else if (decoded.gender === 'female') {
+            elderlyFemales++;
+          }
+        }
+      }
+    });
+
     return {
       totalVoters: voters.length,
       supporters: voters.filter(v => v.stance === 'supporter').length,
@@ -257,6 +286,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       neutral: voters.filter(v => v.stance === 'neutral').length,
       todayCount: voters.filter(v => new Date(v.createdAt) >= today).length,
       representativesCount: reps.length,
+      elderlyCount,
+      elderlyMales,
+      elderlyFemales,
+      totalMales,
+      totalFemales,
     };
   } catch (error) {
     console.error('Error getting dashboard stats:', error);
@@ -267,6 +301,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       neutral: 0,
       todayCount: 0,
       representativesCount: 0,
+      elderlyCount: 0,
+      elderlyMales: 0,
+      elderlyFemales: 0,
+      totalMales: 0,
+      totalFemales: 0,
     };
   }
 }
@@ -284,6 +323,34 @@ export async function getRepresentativesPerformance(): Promise<RepresentativePer
 
     return reps.map(([userId, name]) => {
       const repVoters = voters.filter(v => v.representativeId === userId);
+      
+      let elderlyCount = 0;
+      let elderlyMales = 0;
+      let elderlyFemales = 0;
+      let malesCount = 0;
+      let femalesCount = 0;
+
+      repVoters.forEach(voter => {
+        const decoded = decodeEgyptianID(voter.nationalId);
+        
+        if (decoded.isValid) {
+          if (decoded.gender === 'male') {
+            malesCount++;
+          } else if (decoded.gender === 'female') {
+            femalesCount++;
+          }
+
+          if (decoded.birthDate && isElderly(decoded.birthDate)) {
+            elderlyCount++;
+            if (decoded.gender === 'male') {
+              elderlyMales++;
+            } else if (decoded.gender === 'female') {
+              elderlyFemales++;
+            }
+          }
+        }
+      });
+
       return {
         userId,
         name: name || null,
@@ -295,6 +362,11 @@ export async function getRepresentativesPerformance(): Promise<RepresentativePer
         supportersCount: repVoters.filter(v => v.stance === 'supporter').length,
         opponentsCount: repVoters.filter(v => v.stance === 'opponent').length,
         neutralCount: repVoters.filter(v => v.stance === 'neutral').length,
+        elderlyCount,
+        elderlyMales,
+        elderlyFemales,
+        malesCount,
+        femalesCount,
       };
     });
   } catch (error) {

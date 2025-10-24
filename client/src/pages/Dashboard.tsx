@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, ThumbsUp, ThumbsDown, Minus, TrendingUp } from "lucide-react";
+import { Users, ThumbsUp, ThumbsDown, Minus, TrendingUp, UserCheck, Car, Bell } from "lucide-react";
 import { DashboardStats } from "@shared/schema";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
@@ -185,6 +185,104 @@ export default function Dashboard() {
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Elderly and Gender Statistics */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="hover-elevate">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              كبار السن (60+ عام)
+            </CardTitle>
+            <div className="rounded-lg bg-orange-500/10 p-2">
+              <UserCheck className="h-4 w-4 text-orange-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold text-foreground">
+              {(stats?.elderlyCount ?? 0).toLocaleString("ar-EG")}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {stats && stats.totalVoters > 0 
+                ? `${((stats.elderlyCount / stats.totalVoters) * 100).toFixed(1)}% من الإجمالي`
+                : ''}
+            </p>
+            <div className="mt-3 flex justify-between text-sm">
+              <span className="text-blue-600">ذكور: {stats?.elderlyMales ?? 0}</span>
+              <span className="text-pink-600">إناث: {stats?.elderlyFemales ?? 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-elevate">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              السيارات المطلوبة
+            </CardTitle>
+            <div className="rounded-lg bg-blue-500/10 p-2">
+              <Car className="h-4 w-4 text-blue-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold text-foreground">
+              {stats ? Math.ceil(stats.elderlyCount / 4) : 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              بمعدل 4 أشخاص لكل سيارة
+            </p>
+            <div className="mt-3 text-sm text-muted-foreground">
+              <Bell className="inline h-3 w-3 ml-1" />
+              يحتاجون للمساعدة والتنبيه
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-elevate">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              توزيع الجنس
+            </CardTitle>
+            <div className="rounded-lg bg-purple-500/10 p-2">
+              <Users className="h-4 w-4 text-purple-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-blue-600 font-medium">ذكور</span>
+                  <span className="font-bold">{stats?.totalMales || 0}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-blue-500"
+                    style={{
+                      width: stats && stats.totalVoters > 0 
+                        ? `${((stats.totalMales / stats.totalVoters) * 100).toFixed(1)}%`
+                        : '0%',
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-pink-600 font-medium">إناث</span>
+                  <span className="font-bold">{stats?.totalFemales || 0}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-pink-500"
+                    style={{
+                      width: stats && stats.totalVoters > 0 
+                        ? `${((stats.totalFemales / stats.totalVoters) * 100).toFixed(1)}%`
+                        : '0%',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
