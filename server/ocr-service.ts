@@ -63,32 +63,54 @@ async function preprocessImageForEgyptianID(imageBuffer: Buffer): Promise<Buffer
     
     variations.push(
       await sharp(imageBuffer)
-        .resize(2400, null, { fit: 'inside', withoutEnlargement: false })
+        .resize(3500, null, { fit: 'inside', withoutEnlargement: false })
         .grayscale()
-        .normalize()
-        .linear(1.3, -(128 * 1.3) + 128)
-        .sharpen({ sigma: 1.5 })
-        .toBuffer()
-    );
-    
-    variations.push(
-      await sharp(imageBuffer)
-        .resize(3000, null, { fit: 'inside', withoutEnlargement: false })
-        .grayscale()
-        .normalize()
-        .linear(1.8, -(128 * 1.8) + 128)
-        .sharpen({ sigma: 2 })
-        .threshold(120)
-        .toBuffer()
-    );
-    
-    variations.push(
-      await sharp(imageBuffer)
-        .resize(2800, null, { fit: 'inside', withoutEnlargement: false })
-        .grayscale()
-        .median(3)
         .normalize()
         .linear(1.5, -(128 * 1.5) + 128)
+        .sharpen({ sigma: 1.8 })
+        .toBuffer()
+    );
+    
+    variations.push(
+      await sharp(imageBuffer)
+        .resize(4000, null, { fit: 'inside', withoutEnlargement: false })
+        .grayscale()
+        .normalize()
+        .linear(2.0, -(128 * 2.0) + 128)
+        .sharpen({ sigma: 2.5 })
+        .threshold(115)
+        .toBuffer()
+    );
+    
+    variations.push(
+      await sharp(imageBuffer)
+        .resize(3200, null, { fit: 'inside', withoutEnlargement: false })
+        .grayscale()
+        .median(2)
+        .normalize()
+        .linear(1.7, -(128 * 1.7) + 128)
+        .sharpen({ sigma: 2 })
+        .toBuffer()
+    );
+    
+    variations.push(
+      await sharp(imageBuffer)
+        .resize(3800, null, { fit: 'inside', withoutEnlargement: false })
+        .grayscale()
+        .normalize()
+        .clahe({ width: 8, height: 8, maxSlope: 3 })
+        .sharpen({ sigma: 2.2 })
+        .toBuffer()
+    );
+    
+    variations.push(
+      await sharp(imageBuffer)
+        .resize(3600, null, { fit: 'inside', withoutEnlargement: false })
+        .grayscale()
+        .normalize()
+        .linear(1.6, -(128 * 1.6) + 128)
+        .blur(0.5)
+        .sharpen({ sigma: 3 })
         .toBuffer()
     );
     
@@ -178,7 +200,13 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
           await worker.setParameters({
             tessedit_pageseg_mode: '6',
             preserve_interword_spaces: '1',
-            tessedit_char_whitelist: '0123456789٠١٢٣٤٥٦٧٨٩أبتثجحخدذرزسشصضطظعغفقكلمنهويىةآإؤئءةًٌٍَُِّْ '
+            tessedit_char_whitelist: '0123456789٠١٢٣٤٥٦٧٨٩أبتثجحخدذرزسشصضطظعغفقكلمنهويىةآإؤئءًٌٍَُِّْٓ ',
+            tessedit_ocr_engine_mode: '1',
+            chop_enable: 'T',
+            use_new_state_cost: 'F',
+            segment_segcost_rating: 'F',
+            enable_new_segsearch: '0',
+            textord_min_linesize: '2.5'
           });
           
           const { data: { text: tesseractText, confidence } } = await worker.recognize(imageVariations[i]);
@@ -261,7 +289,14 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
     let address: string | null = null;
 
     const namePatterns = [
-      /([أ-ي\s]{6,})/g,
+      /([أ-يا-ي\s]{6,})/g,
+    ];
+    
+    const commonWords = [
+      'مصر', 'جمهورية', 'محافظة', 'بطاقة', 'العربية', 'العنوان', 'الرقم', 
+      'القومي', 'الاسم', 'العنوان', 'تاريخ', 'الميلاد', 'الجنس', 'الديانة',
+      'المهنة', 'الحالة', 'الاجتماعية', 'وزارة', 'الداخلية', 'مصلحة', 
+      'الاحوال', 'المدنية', 'شخصية', 'قومية'
     ];
     
     const governorateKeywords = [
@@ -272,49 +307,59 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
       'شمال سيناء', 'جنوب سيناء', 'البحر الأحمر', 'سوهاج'
     ];
 
-    for (const line of lines) {
-      if (/[\u0600-\u06FF]/.test(line)) {
-        if (!fullName) {
-          for (const pattern of namePatterns) {
-            const matches = line.match(pattern);
-            if (matches) {
-              for (const match of matches) {
-                const cleanName = match.trim();
-                const words = cleanName.split(/\s+/);
-                
-                if (words.length >= 2 && words.length <= 7 && 
-                    cleanName.length >= 6 &&
-                    !cleanName.includes('مصر') && 
-                    !cleanName.includes('جمهورية') && 
-                    !cleanName.includes('محافظة') &&
-                    !cleanName.includes('بطاقة') &&
-                    !cleanName.includes('العربية') &&
-                    !cleanName.includes('العنوان') &&
-                    !/\d/.test(cleanName)) {
-                  fullName = cleanName;
-                  console.log('✅ Found name:', fullName);
-                  break;
-                }
-              }
-              if (fullName) break;
+    const arabicLines = lines.filter(line => /[\u0600-\u06FF]/.test(line));
+    
+    for (const line of arabicLines) {
+      const cleanedLine = line.replace(/[^\u0600-\u06FF\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      if (!fullName && cleanedLine.length >= 6) {
+        const words = cleanedLine.split(/\s+/);
+        
+        const hasCommonWord = commonWords.some(word => cleanedLine.includes(word));
+        const hasGovernorate = governorateKeywords.some(gov => cleanedLine.includes(gov));
+        
+        if (!hasCommonWord && !hasGovernorate && words.length >= 2 && words.length <= 7) {
+          const validWords = words.filter(word => word.length >= 2);
+          
+          if (validWords.length >= 2) {
+            fullName = validWords.join(' ');
+            console.log('✅ Found name candidate:', fullName);
+          }
+        }
+      }
+      
+      if (!address) {
+        for (const gov of governorateKeywords) {
+          if (line.includes(gov)) {
+            const addressLine = line.replace(/محافظة|العنوان|عنوان|:/g, ' ').replace(/\s+/g, ' ').trim();
+            if (addressLine.length >= 4 && addressLine.length <= 100) {
+              address = addressLine;
+              console.log('✅ Found address:', address);
+              break;
             }
           }
         }
-        
-        if (!address) {
-          for (const gov of governorateKeywords) {
-            if (line.includes(gov)) {
-              const addressLine = line.replace(/محافظة|العنوان|عنوان|:/g, '').trim();
-              if (addressLine.length >= 4 && addressLine.length <= 100) {
-                address = addressLine;
-                console.log('✅ Found address:', address);
-                break;
-              }
-            }
-          }
-        }
-        
-        if (fullName && address) break;
+      }
+      
+      if (fullName && address) break;
+    }
+    
+    if (!fullName && arabicLines.length > 0) {
+      const sortedLines = arabicLines
+        .map(line => line.replace(/[^\u0600-\u06FF\s]/g, ' ').replace(/\s+/g, ' ').trim())
+        .filter(line => {
+          const words = line.split(/\s+/);
+          return words.length >= 2 && words.length <= 7 && line.length >= 6;
+        })
+        .sort((a, b) => {
+          const hasCommonA = commonWords.some(word => a.includes(word)) ? 1 : 0;
+          const hasCommonB = commonWords.some(word => b.includes(word)) ? 1 : 0;
+          return hasCommonA - hasCommonB;
+        });
+      
+      if (sortedLines.length > 0) {
+        fullName = sortedLines[0];
+        console.log('✅ Using best name guess:', fullName);
       }
     }
 
