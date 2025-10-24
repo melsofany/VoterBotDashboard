@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Users } from 'lucide-react';
 
 export default function Login() {
@@ -20,12 +20,13 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const response = await apiRequest('/api/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      });
+      const res = await apiRequest('POST', '/api/login', { username, password });
+      const data = await res.json();
 
-      if (response.success) {
+      if (data.success) {
+        // Invalidate the /api/me query to refetch with new session
+        await queryClient.invalidateQueries({ queryKey: ['/api/me'] });
+        
         toast({
           title: 'تسجيل دخول ناجح',
           description: 'مرحباً بك في لوحة التحكم',
