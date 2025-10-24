@@ -243,3 +243,113 @@ export async function getRepresentativesPerformance(): Promise<RepresentativePer
     return [];
   }
 }
+
+export async function addRepresentative(userId: string, name?: string): Promise<void> {
+  try {
+    const sheets = await getUncachableGoogleSheetClient();
+    
+    const values = [[userId, name || '']];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: `${REPS_SHEET}!A:B`,
+      valueInputOption: 'RAW',
+      requestBody: { values }
+    });
+
+    console.log('✅ Representative added to Google Sheets:', userId);
+  } catch (error) {
+    console.error('❌ Error adding representative to sheets:', error);
+    throw error;
+  }
+}
+
+export async function updateRepresentative(userId: string, name: string): Promise<void> {
+  try {
+    const sheets = await getUncachableGoogleSheetClient();
+    
+    // Get all representatives to find the row
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${REPS_SHEET}!A2:B`,
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0] === userId);
+    
+    if (rowIndex === -1) {
+      throw new Error('Representative not found');
+    }
+
+    // Update the name (row index + 2 because we start from A2)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${REPS_SHEET}!B${rowIndex + 2}`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[name]]
+      }
+    });
+
+    console.log('✅ Representative updated in Google Sheets:', userId);
+  } catch (error) {
+    console.error('❌ Error updating representative in sheets:', error);
+    throw error;
+  }
+}
+
+export async function deleteRepresentative(userId: string): Promise<void> {
+  try {
+    const sheets = await getUncachableGoogleSheetClient();
+    
+    // Get all representatives to find the row
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${REPS_SHEET}!A2:B`,
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0] === userId);
+    
+    if (rowIndex === -1) {
+      throw new Error('Representative not found');
+    }
+
+    // Delete the row (row index + 2 because we start from A2, and sheets are 1-indexed)
+    const sheetId = await getSheetId(REPS_SHEET);
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheetId,
+              dimension: 'ROWS',
+              startIndex: rowIndex + 1, // +1 because header is row 0
+              endIndex: rowIndex + 2
+            }
+          }
+        }]
+      }
+    });
+
+    console.log('✅ Representative deleted from Google Sheets:', userId);
+  } catch (error) {
+    console.error('❌ Error deleting representative from sheets:', error);
+    throw error;
+  }
+}
+
+async function getSheetId(sheetName: string): Promise<number> {
+  const sheets = await getUncachableGoogleSheetClient();
+  const response = await sheets.spreadsheets.get({
+    spreadsheetId: SHEET_ID,
+  });
+  
+  const sheet = response.data.sheets?.find(s => s.properties?.title === sheetName);
+  if (!sheet || sheet.properties?.sheetId === undefined) {
+    throw new Error(`Sheet "${sheetName}" not found`);
+  }
+  
+  return sheet.properties.sheetId;
+}
