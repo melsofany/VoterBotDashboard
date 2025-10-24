@@ -1,13 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { Home, Users, BarChart3, UserCheck } from "lucide-react";
+import { Home, Users, BarChart3, UserCheck, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { apiRequest, queryClient, removeAuthToken } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const navItems = [
     { path: "/", icon: Home, label: "الرئيسية" },
@@ -15,6 +18,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { path: "/representatives", icon: UserCheck, label: "المناديب" },
     { path: "/analytics", icon: BarChart3, label: "التحليلات" },
   ];
+
+  const handleLogout = async () => {
+    try {
+      await apiRequest('POST', '/api/logout');
+      removeAuthToken();
+      await queryClient.invalidateQueries({ queryKey: ['/api/me'] });
+      toast({
+        title: 'تسجيل خروج ناجح',
+        description: 'تم تسجيل الخروج بنجاح',
+      });
+      setLocation('/login');
+    } catch (error) {
+      removeAuthToken();
+      setLocation('/login');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
@@ -32,6 +51,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </p>
               </div>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              data-testid="button-logout"
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">تسجيل خروج</span>
+            </Button>
           </div>
         </div>
       </header>

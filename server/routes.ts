@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import passport from 'passport';
-import { isAuthenticated } from './auth';
+import { isAuthenticated, login, logout } from './auth';
 import { 
   getDashboardStats, 
   getAllVoters, 
@@ -15,44 +14,38 @@ import { insertRepresentativeSchema } from '@shared/schema';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate('local', (err: any, user: any, info: any) => {
-      if (err) {
-        console.error('Auth error:', err);
-        return res.status(500).json({ message: 'Authentication error' });
-      }
-      if (!user) {
-        return res.status(401).json({ message: info?.message || 'Invalid credentials' });
-      }
-      req.logIn(user, (err) => {
-        if (err) {
-          console.error('Login error:', err);
-          return res.status(500).json({ message: 'Login error' });
-        }
-        console.log('✅ User logged in successfully:', user.username);
-        console.log('Session ID:', req.sessionID);
-        console.log('Session:', req.session);
-        return res.json({ success: true, user: { username: user.username } });
+  app.post("/api/login", (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password required' });
+    }
+
+    const result = login(username, password);
+    
+    if (result.success) {
+      console.log('✅ User logged in successfully:', username);
+      return res.json({ 
+        success: true, 
+        token: result.token,
+        user: { username } 
       });
-    })(req, res, next);
+    } else {
+      return res.status(401).json({ message: result.error || 'Invalid credentials' });
+    }
   });
 
   app.post("/api/logout", (req, res) => {
-    req.logout((err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Logout error' });
-      }
-      res.json({ success: true });
-    });
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      logout(token);
+    }
+    res.json({ success: true });
   });
 
-  app.get("/api/me", (req, res) => {
-    console.log('GET /api/me - SessionID:', req.sessionID);
-    console.log('GET /api/me - Session:', req.session);
-    console.log('GET /api/me - isAuthenticated:', req.isAuthenticated());
-    console.log('GET /api/me - User:', req.user);
-    
-    if (req.isAuthenticated()) {
+  app.get("/api/me", (req: any, res) => {
+    if (req.isAuthenticated && req.isAuthenticated()) {
       res.json({ user: req.user });
     } else {
       res.status(401).json({ message: 'Not authenticated' });
