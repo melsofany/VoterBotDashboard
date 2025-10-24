@@ -27,13 +27,15 @@ function convertArabicNumeralsToLatin(text: string): string {
 async function preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
   try {
     return await sharp(imageBuffer)
-      .grayscale()
-      .normalize()
-      .sharpen()
-      .resize(2000, null, { 
+      .resize(3000, null, { 
         fit: 'inside',
         withoutEnlargement: false
       })
+      .grayscale()
+      .normalize()
+      .linear(1.5, -(128 * 1.5) + 128)
+      .sharpen({ sigma: 2 })
+      .threshold(128)
       .toBuffer();
   } catch (error) {
     console.log('⚠️ Image preprocessing failed, using original');
@@ -47,7 +49,13 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
     
     const processedImage = await preprocessImage(imageBuffer);
     
-    const worker = await createWorker('ara+eng');
+    const worker = await createWorker('ara+eng', 1, {
+      logger: () => {}
+    });
+    
+    await worker.setParameters({
+      tessedit_char_whitelist: '٠١٢٣٤٥٦٧٨٩0123456789 \nأبتثجحخدذرزسشصضطظعغفقكلمنهويءآإئؤةى',
+    });
     
     const { data: { text } } = await worker.recognize(processedImage);
     
