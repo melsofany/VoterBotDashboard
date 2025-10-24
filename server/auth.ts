@@ -7,6 +7,9 @@ import MemoryStore from 'memorystore';
 const MemoryStoreSession = MemoryStore(session);
 
 export function setupAuth(app: Express) {
+  // Trust the first proxy (Replit proxy)
+  app.set('trust proxy', 1);
+  
   // Session configuration
   app.use(
     session({
@@ -20,8 +23,7 @@ export function setupAuth(app: Express) {
       cookie: {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: false,
       },
     })
   );
