@@ -15,10 +15,6 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 36135
-externalPort = 3000
-
-[[ports]]
 localPort = 42201
 externalPort = 3001
 
@@ -49,6 +45,9 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 integrations = ["google-drive:1.0.0", "google-sheet:1.0.0"]
