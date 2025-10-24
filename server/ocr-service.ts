@@ -53,24 +53,20 @@ async function extractWithHuggingFace(imageBuffer: Buffer): Promise<string | nul
   }
 
   try {
-    console.log('🤖 Trying Hugging Face OCR...');
+    console.log('🤖 Trying Hugging Face OCR with TrOCR...');
     
-    const response = await fetch('https://api-inference.huggingface.co/models/facebook/nougat-base', {
+    const response = await fetch(HUGGINGFACE_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${HUGGINGFACE_TOKEN}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'image/jpeg',
       },
-      body: JSON.stringify({
-        inputs: imageBuffer.toString('base64'),
-        options: {
-          wait_for_model: true
-        }
-      })
+      body: imageBuffer
     });
 
     if (!response.ok) {
-      console.log(`⚠️ Hugging Face API error: ${response.status}`);
+      const errorText = await response.text();
+      console.log(`⚠️ Hugging Face API error ${response.status}:`, errorText);
       return null;
     }
 
@@ -81,6 +77,8 @@ async function extractWithHuggingFace(imageBuffer: Buffer): Promise<string | nul
       return result;
     } else if (result && result[0] && result[0].generated_text) {
       return result[0].generated_text;
+    } else if (Array.isArray(result) && result.length > 0) {
+      return result.map(r => r.generated_text || '').join(' ');
     }
     
     return null;

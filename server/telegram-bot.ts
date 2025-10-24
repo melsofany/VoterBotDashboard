@@ -470,7 +470,10 @@ export async function startTelegramBot() {
   });
 
   // Error handling
-  bot.on('polling_error', (error) => {
+  bot.on('polling_error', (error: any) => {
+    if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
+      return;
+    }
     console.error('Polling error:', error);
   });
 }

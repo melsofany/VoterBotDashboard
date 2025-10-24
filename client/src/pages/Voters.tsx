@@ -113,10 +113,17 @@ export default function Voters() {
                         <span dir="ltr">{voter.phoneNumber}</span>
                       </div>
                       {voter.latitude && voter.longitude && (
-                        <div className="flex items-center gap-2">
+                        <a
+                          href={`https://www.google.com/maps?q=${voter.latitude},${voter.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`link-location-${voter.id}`}
+                        >
                           <MapPin className="h-4 w-4" />
-                          <span>الموقع متاح</span>
-                        </div>
+                          <span>عرض الموقع</span>
+                        </a>
                       )}
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
