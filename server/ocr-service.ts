@@ -2,11 +2,17 @@ import { createWorker } from 'tesseract.js';
 import sharp from 'sharp';
 
 const HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN;
-const HUGGINGFACE_API_URL = 'https://api-inference.huggingface.co/models/microsoft/trocr-base-printed';
+
+const HUGGINGFACE_OCR_MODELS = [
+  'https://api-inference.huggingface.co/models/facebook/nougat-base',
+  'https://api-inference.huggingface.co/models/microsoft/trocr-base-printed',
+  'https://api-inference.huggingface.co/models/microsoft/trocr-large-printed'
+];
 
 export interface OCRResult {
   nationalId: string | null;
   fullName: string | null;
+  address: string | null;
   text: string;
 }
 
@@ -46,74 +52,156 @@ async function preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
   }
 }
 
+async function preprocessImageForEgyptianID(imageBuffer: Buffer): Promise<Buffer[]> {
+  try {
+    const baseImage = sharp(imageBuffer);
+    const metadata = await baseImage.metadata();
+    
+    const variations: Buffer[] = [];
+    
+    variations.push(
+      await sharp(imageBuffer)
+        .resize(2400, null, { fit: 'inside', withoutEnlargement: false })
+        .grayscale()
+        .normalize()
+        .linear(1.3, -(128 * 1.3) + 128)
+        .sharpen({ sigma: 1.5 })
+        .toBuffer()
+    );
+    
+    variations.push(
+      await sharp(imageBuffer)
+        .resize(3000, null, { fit: 'inside', withoutEnlargement: false })
+        .grayscale()
+        .normalize()
+        .linear(1.8, -(128 * 1.8) + 128)
+        .sharpen({ sigma: 2 })
+        .threshold(120)
+        .toBuffer()
+    );
+    
+    variations.push(
+      await sharp(imageBuffer)
+        .resize(2800, null, { fit: 'inside', withoutEnlargement: false })
+        .grayscale()
+        .median(3)
+        .normalize()
+        .linear(1.5, -(128 * 1.5) + 128)
+        .toBuffer()
+    );
+    
+    return variations;
+  } catch (error) {
+    console.log('⚠️ Enhanced preprocessing failed, using basic');
+    return [await preprocessImage(imageBuffer)];
+  }
+}
+
 async function extractWithHuggingFace(imageBuffer: Buffer): Promise<string | null> {
   if (!HUGGINGFACE_TOKEN) {
     console.log('⚠️ Hugging Face token not available, skipping HF OCR');
     return null;
   }
 
-  try {
-    console.log('🤖 Trying Hugging Face OCR with TrOCR...');
-    
-    const response = await fetch(HUGGINGFACE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HUGGINGFACE_TOKEN}`,
-        'Content-Type': 'image/jpeg',
-      },
-      body: imageBuffer
-    });
+  for (const modelUrl of HUGGINGFACE_OCR_MODELS) {
+    try {
+      console.log(`🤖 Trying Hugging Face OCR with ${modelUrl.split('/').pop()}...`);
+      
+      const response = await fetch(modelUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HUGGINGFACE_TOKEN}`,
+          'Content-Type': 'image/jpeg',
+        },
+        body: imageBuffer
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.log(`⚠️ Hugging Face API error ${response.status}:`, errorText);
-      return null;
-    }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`⚠️ Model ${modelUrl.split('/').pop()} error ${response.status}:`, errorText);
+        continue;
+      }
 
-    const result = await response.json();
-    console.log('✅ Hugging Face OCR response:', result);
-    
-    if (typeof result === 'string') {
-      return result;
-    } else if (result && result[0] && result[0].generated_text) {
-      return result[0].generated_text;
-    } else if (Array.isArray(result) && result.length > 0) {
-      return result.map(r => r.generated_text || '').join(' ');
+      const result = await response.json();
+      console.log('✅ Hugging Face OCR response:', result);
+      
+      let extractedText = null;
+      if (typeof result === 'string') {
+        extractedText = result;
+      } else if (result && result[0] && result[0].generated_text) {
+        extractedText = result[0].generated_text;
+      } else if (Array.isArray(result) && result.length > 0) {
+        extractedText = result.map(r => r.generated_text || '').join(' ');
+      }
+      
+      if (extractedText && extractedText.length > 10) {
+        console.log(`✅ Successfully extracted text using ${modelUrl.split('/').pop()}`);
+        return extractedText;
+      }
+    } catch (error) {
+      console.log(`❌ Model ${modelUrl.split('/').pop()} failed:`, error);
+      continue;
     }
-    
-    return null;
-  } catch (error) {
-    console.error('❌ Hugging Face OCR error:', error);
-    return null;
   }
+  
+  console.log('⚠️ All Hugging Face models failed');
+  return null;
 }
 
 export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRResult> {
   try {
-    console.log('🔍 Starting OCR processing...');
+    console.log('🔍 Starting enhanced OCR processing for Egyptian ID...');
     
     let text = '';
+    let bestText = '';
+    let maxConfidence = 0;
     
     const hfText = await extractWithHuggingFace(imageBuffer);
-    if (hfText) {
+    if (hfText && hfText.length > 20) {
       text = hfText;
       console.log('✅ Using Hugging Face OCR result');
     } else {
-      console.log('🔄 Falling back to Tesseract OCR...');
-      const worker = await createWorker('ara', 1, {
-        logger: () => {}
-      });
+      console.log('🔄 Falling back to Tesseract OCR with multiple preprocessing variations...');
       
-      await worker.setParameters({
-        tessedit_pageseg_mode: '6',
-        preserve_interword_spaces: '1',
-      });
+      const imageVariations = await preprocessImageForEgyptianID(imageBuffer);
       
-      const processedImage = await preprocessImage(imageBuffer);
-      const { data: { text: tesseractText } } = await worker.recognize(processedImage);
+      for (let i = 0; i < imageVariations.length; i++) {
+        try {
+          console.log(`🔄 Processing image variation ${i + 1}/${imageVariations.length}...`);
+          
+          const worker = await createWorker('ara+eng', 1, {
+            logger: () => {}
+          });
+          
+          await worker.setParameters({
+            tessedit_pageseg_mode: '6',
+            preserve_interword_spaces: '1',
+            tessedit_char_whitelist: '0123456789٠١٢٣٤٥٦٧٨٩أبتثجحخدذرزسشصضطظعغفقكلمنهويىةآإؤئءةًٌٍَُِّْ '
+          });
+          
+          const { data: { text: tesseractText, confidence } } = await worker.recognize(imageVariations[i]);
+          
+          await worker.terminate();
+          
+          console.log(`📊 Variation ${i + 1} confidence: ${confidence}%`);
+          
+          if (confidence > maxConfidence && tesseractText.length > 20) {
+            maxConfidence = confidence;
+            bestText = tesseractText;
+          }
+          
+          if (i === 0 || text.length < tesseractText.length) {
+            text += '\n' + tesseractText;
+          }
+        } catch (error) {
+          console.log(`⚠️ Variation ${i + 1} failed:`, error);
+        }
+      }
       
-      await worker.terminate();
-      text = tesseractText;
+      if (bestText && bestText.length > text.length / 2) {
+        text = bestText;
+        console.log(`✅ Using best variation with ${maxConfidence}% confidence`);
+      }
     }
     
     console.log('📄 OCR Raw Text:', text);
@@ -168,45 +256,72 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
 
     const lines = text.split('\n').filter(line => line.trim());
     let fullName: string | null = null;
+    let address: string | null = null;
 
     const namePatterns = [
       /([أ-ي\s]{6,})/g,
     ];
+    
+    const governorateKeywords = [
+      'القاهرة', 'الجيزة', 'الإسكندرية', 'الدقهلية', 'البحيرة', 'الفيوم', 
+      'الغربية', 'الإسماعيلية', 'المنوفية', 'المنيا', 'القليوبية', 'الوادي الجديد',
+      'الشرقية', 'السويس', 'أسوان', 'أسيوط', 'بني سويف', 'بورسعيد',
+      'دمياط', 'الأقصر', 'قنا', 'كفر الشيخ', 'مطروح', 'الوادي الجديد',
+      'شمال سيناء', 'جنوب سيناء', 'البحر الأحمر', 'سوهاج'
+    ];
 
     for (const line of lines) {
       if (/[\u0600-\u06FF]/.test(line)) {
-        for (const pattern of namePatterns) {
-          const matches = line.match(pattern);
-          if (matches) {
-            for (const match of matches) {
-              const cleanName = match.trim();
-              const words = cleanName.split(/\s+/);
-              
-              if (words.length >= 2 && words.length <= 7 && 
-                  cleanName.length >= 6 &&
-                  !cleanName.includes('مصر') && 
-                  !cleanName.includes('جمهورية') && 
-                  !cleanName.includes('محافظة') &&
-                  !cleanName.includes('بطاقة') &&
-                  !cleanName.includes('العربية') &&
-                  !/\d/.test(cleanName)) {
-                fullName = cleanName;
-                console.log('✅ Found name:', fullName);
+        if (!fullName) {
+          for (const pattern of namePatterns) {
+            const matches = line.match(pattern);
+            if (matches) {
+              for (const match of matches) {
+                const cleanName = match.trim();
+                const words = cleanName.split(/\s+/);
+                
+                if (words.length >= 2 && words.length <= 7 && 
+                    cleanName.length >= 6 &&
+                    !cleanName.includes('مصر') && 
+                    !cleanName.includes('جمهورية') && 
+                    !cleanName.includes('محافظة') &&
+                    !cleanName.includes('بطاقة') &&
+                    !cleanName.includes('العربية') &&
+                    !cleanName.includes('العنوان') &&
+                    !/\d/.test(cleanName)) {
+                  fullName = cleanName;
+                  console.log('✅ Found name:', fullName);
+                  break;
+                }
+              }
+              if (fullName) break;
+            }
+          }
+        }
+        
+        if (!address) {
+          for (const gov of governorateKeywords) {
+            if (line.includes(gov)) {
+              const addressLine = line.replace(/محافظة|العنوان|عنوان|:/g, '').trim();
+              if (addressLine.length >= 4 && addressLine.length <= 100) {
+                address = addressLine;
+                console.log('✅ Found address:', address);
                 break;
               }
             }
-            if (fullName) break;
           }
         }
-        if (fullName) break;
+        
+        if (fullName && address) break;
       }
     }
 
-    console.log('✅ OCR Results:', { nationalId, fullName });
+    console.log('✅ OCR Results:', { nationalId, fullName, address });
 
     return {
       nationalId,
       fullName,
+      address,
       text: text.substring(0, 500)
     };
   } catch (error) {
@@ -214,6 +329,7 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
     return {
       nationalId: null,
       fullName: null,
+      address: null,
       text: ''
     };
   }
