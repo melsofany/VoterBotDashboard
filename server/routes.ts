@@ -10,8 +10,10 @@ import {
   deleteRepresentative
 } from "./sheets-service";
 import { streamImageFromDrive } from "./drive-service";
+import { extractDataFromIDCard } from "./ocr-service";
 import { z } from 'zod';
 import { insertRepresentativeSchema } from '@shared/schema';
+import multer from 'multer';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -125,6 +127,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error deleting representative:", error);
       res.status(500).json({ error: error.message || "Failed to delete representative" });
+    }
+  });
+
+  // OCR endpoint for Mini App
+  const upload = multer({ storage: multer.memoryStorage() });
+  app.post("/api/ocr/extract", upload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No image file provided" });
+      }
+
+      console.log('📸 Processing image from Mini App...');
+      const ocrResult = await extractDataFromIDCard(req.file.buffer);
+
+      res.json({
+        nationalId: ocrResult.nationalId,
+        fullName: ocrResult.fullName,
+        address: ocrResult.address
+      });
+    } catch (error: any) {
+      console.error("Error in OCR extraction:", error);
+      res.status(500).json({ error: error.message || "Failed to extract data from image" });
     }
   });
 
