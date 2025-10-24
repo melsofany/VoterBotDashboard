@@ -1,7 +1,7 @@
 import { getUncachableGoogleDriveClient } from './google-services';
 import { Readable } from 'stream';
 
-const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID!;
+const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '1V_ZX_LXZyWx6w9K72gdeMgFRPjNKw8SG';
 
 export async function uploadImageToDrive(
   imageBuffer: Buffer,

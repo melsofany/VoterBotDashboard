@@ -126,6 +126,17 @@ export async function addVoter(voter: Omit<Voter, 'createdAt'> & { createdAt?: D
   try {
     const sheets = await getUncachableGoogleSheetClient();
     
+    const existingVoters = await getAllVoters();
+    const duplicateNationalId = existingVoters.find(v => v.nationalId === voter.nationalId);
+    if (duplicateNationalId) {
+      throw new Error(`الرقم القومي ${voter.nationalId} موجود بالفعل في النظام`);
+    }
+    
+    const duplicatePhone = existingVoters.find(v => v.phoneNumber === voter.phoneNumber);
+    if (duplicatePhone) {
+      throw new Error(`رقم الهاتف ${voter.phoneNumber} موجود بالفعل في النظام`);
+    }
+    
     const values = [[
       voter.id,
       voter.nationalId,

@@ -1,6 +1,9 @@
 import { createWorker } from 'tesseract.js';
 import sharp from 'sharp';
 
+const HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN;
+const HUGGINGFACE_API_URL = 'https://api-inference.huggingface.co/models/microsoft/trocr-base-printed';
+
 export interface OCRResult {
   nationalId: string | null;
   fullName: string | null;
@@ -43,23 +46,77 @@ async function preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
   }
 }
 
+async function extractWithHuggingFace(imageBuffer: Buffer): Promise<string | null> {
+  if (!HUGGINGFACE_TOKEN) {
+    console.log('⚠️ Hugging Face token not available, skipping HF OCR');
+    return null;
+  }
+
+  try {
+    console.log('🤖 Trying Hugging Face OCR...');
+    
+    const response = await fetch('https://api-inference.huggingface.co/models/facebook/nougat-base', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HUGGINGFACE_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: imageBuffer.toString('base64'),
+        options: {
+          wait_for_model: true
+        }
+      })
+    });
+
+    if (!response.ok) {
+      console.log(`⚠️ Hugging Face API error: ${response.status}`);
+      return null;
+    }
+
+    const result = await response.json();
+    console.log('✅ Hugging Face OCR response:', result);
+    
+    if (typeof result === 'string') {
+      return result;
+    } else if (result && result[0] && result[0].generated_text) {
+      return result[0].generated_text;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Hugging Face OCR error:', error);
+    return null;
+  }
+}
+
 export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRResult> {
   try {
     console.log('🔍 Starting OCR processing...');
     
-    const worker = await createWorker('ara', 1, {
-      logger: () => {}
-    });
+    let text = '';
     
-    await worker.setParameters({
-      tessedit_pageseg_mode: '6',
-      preserve_interword_spaces: '1',
-    });
-    
-    const processedImage = await preprocessImage(imageBuffer);
-    const { data: { text } } = await worker.recognize(processedImage);
-    
-    await worker.terminate();
+    const hfText = await extractWithHuggingFace(imageBuffer);
+    if (hfText) {
+      text = hfText;
+      console.log('✅ Using Hugging Face OCR result');
+    } else {
+      console.log('🔄 Falling back to Tesseract OCR...');
+      const worker = await createWorker('ara', 1, {
+        logger: () => {}
+      });
+      
+      await worker.setParameters({
+        tessedit_pageseg_mode: '6',
+        preserve_interword_spaces: '1',
+      });
+      
+      const processedImage = await preprocessImage(imageBuffer);
+      const { data: { text: tesseractText } } = await worker.recognize(processedImage);
+      
+      await worker.terminate();
+      text = tesseractText;
+    }
     
     console.log('📄 OCR Raw Text:', text);
 
