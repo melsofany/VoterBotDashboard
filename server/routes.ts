@@ -9,6 +9,7 @@ import {
   updateRepresentative,
   deleteRepresentative
 } from "./sheets-service";
+import { streamImageFromDrive } from "./drive-service";
 import { z } from 'zod';
 import { insertRepresentativeSchema } from '@shared/schema';
 
@@ -124,6 +125,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error deleting representative:", error);
       res.status(500).json({ error: error.message || "Failed to delete representative" });
+    }
+  });
+
+  // Image proxy route - serves images from Google Drive
+  app.get("/api/voters/:id/card-image", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const voters = await getAllVoters();
+      const voter = voters.find(v => v.id === id);
+      
+      if (!voter || !voter.idCardImageUrl) {
+        return res.status(404).json({ error: "Image not found" });
+      }
+      
+      await streamImageFromDrive(voter.idCardImageUrl, res);
+    } catch (error: any) {
+      console.error("Error serving image:", error);
+      res.status(500).json({ error: "Failed to load image" });
     }
   });
 

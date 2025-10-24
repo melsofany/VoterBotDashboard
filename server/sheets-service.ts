@@ -60,25 +60,71 @@ export async function initializeSheets() {
       });
     }
 
-    // Initialize headers if sheets are empty
+    // Check and migrate headers if needed
     const votersData = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${VOTERS_SHEET}!A1:K1`,
+      range: `${VOTERS_SHEET}!A1:L1`,
     });
 
     if (!votersData.data.values || votersData.data.values.length === 0) {
+      // Sheet is empty, create new headers
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range: `${VOTERS_SHEET}!A1:K1`,
+        range: `${VOTERS_SHEET}!A1:L1`,
         valueInputOption: 'RAW',
         requestBody: {
           values: [[
             'ID', 'National ID', 'Full Name', 'Family Name', 'Phone Number',
-            'Latitude', 'Longitude', 'Stance', 'ID Card Image URL',
+            'Latitude', 'Longitude', 'Address', 'Stance', 'ID Card Image URL',
             'Representative ID', 'Created At'
           ]]
         }
       });
+    } else if (votersData.data.values[0].length === 11) {
+      // Old format detected (11 columns), migrate to new format (12 columns)
+      console.log('🔄 Migrating Google Sheets to include Address column...');
+      
+      // Get all existing data
+      const allData = await sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: `${VOTERS_SHEET}!A:K`,
+      });
+      
+      if (allData.data.values && allData.data.values.length > 0) {
+        // Transform all rows to include empty address column at position 7 (index 7)
+        const migratedRows = allData.data.values.map((row, index) => {
+          if (index === 0) {
+            // Update header row
+            return [
+              'ID', 'National ID', 'Full Name', 'Family Name', 'Phone Number',
+              'Latitude', 'Longitude', 'Address', 'Stance', 'ID Card Image URL',
+              'Representative ID', 'Created At'
+            ];
+          } else {
+            // Insert empty address column for data rows
+            const newRow = [...row];
+            newRow.splice(7, 0, ''); // Insert empty string at position 7
+            return newRow;
+          }
+        });
+        
+        // Clear old data and write migrated data
+        await sheets.spreadsheets.values.clear({
+          spreadsheetId: SHEET_ID,
+          range: `${VOTERS_SHEET}!A:K`,
+        });
+        
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: `${VOTERS_SHEET}!A1:L${migratedRows.length}`,
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: migratedRows
+          }
+        });
+        
+        console.log(`✅ Migrated ${migratedRows.length - 1} voter rows to new format`);
+      }
     }
 
     const repsData = await sheets.spreadsheets.values.get({
@@ -145,6 +191,7 @@ export async function addVoter(voter: Omit<Voter, 'createdAt'> & { createdAt?: D
       voter.phoneNumber,
       voter.latitude?.toString() || '',
       voter.longitude?.toString() || '',
+      voter.address || '',
       voter.stance,
       voter.idCardImageUrl || '',
       voter.representativeId,
@@ -153,7 +200,7 @@ export async function addVoter(voter: Omit<Voter, 'createdAt'> & { createdAt?: D
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${VOTERS_SHEET}!A:K`,
+      range: `${VOTERS_SHEET}!A:L`,
       valueInputOption: 'RAW',
       requestBody: { values }
     });
@@ -170,7 +217,7 @@ export async function getAllVoters(): Promise<Voter[]> {
     const sheets = await getUncachableGoogleSheetClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${VOTERS_SHEET}!A2:K`,
+      range: `${VOTERS_SHEET}!A2:L`,
     });
 
     const rows = response.data.values || [];
@@ -182,11 +229,12 @@ export async function getAllVoters(): Promise<Voter[]> {
       phoneNumber: row[4] || '',
       latitude: row[5] ? parseFloat(row[5]) : null,
       longitude: row[6] ? parseFloat(row[6]) : null,
-      stance: row[7] || 'neutral',
-      idCardImageUrl: row[8] || null,
-      representativeId: row[9] || '',
+      address: row[7] || null,
+      stance: row[8] || 'neutral',
+      idCardImageUrl: row[9] || null,
+      representativeId: row[10] || '',
       representativeName: null, // Name is not stored in voters sheet
-      createdAt: row[10] ? new Date(row[10]) : new Date(),
+      createdAt: row[11] ? new Date(row[11]) : new Date(),
     }));
   } catch (error) {
     console.error('Error getting voters from sheets:', error);

@@ -1,5 +1,6 @@
 import { getUncachableGoogleDriveClient } from './google-services';
 import { Readable } from 'stream';
+import type { Response } from 'express';
 
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '1V_ZX_LXZyWx6w9K72gdeMgFRPjNKw8SG';
 
@@ -37,6 +38,34 @@ export async function uploadImageToDrive(
     return secureViewLink;
   } catch (error) {
     console.error('❌ Error uploading to Drive:', error);
+    throw error;
+  }
+}
+
+export async function streamImageFromDrive(
+  imageUrl: string,
+  res: Response
+): Promise<void> {
+  try {
+    const fileIdMatch = imageUrl.match(/\/file\/d\/([^\/]+)/);
+    if (!fileIdMatch) {
+      throw new Error('Invalid Drive URL format');
+    }
+    
+    const fileId = fileIdMatch[1];
+    const drive = await getUncachableGoogleDriveClient();
+    
+    const response = await drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+    
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    
+    response.data.pipe(res);
+  } catch (error) {
+    console.error('❌ Error streaming image from Drive:', error);
     throw error;
   }
 }

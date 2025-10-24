@@ -162,7 +162,7 @@ export default function Voters() {
               {selectedVoter.idCardImageUrl && (
                 <div className="overflow-hidden rounded-lg border">
                   <img
-                    src={selectedVoter.idCardImageUrl}
+                    src={`/api/voters/${selectedVoter.id}/card-image`}
                     alt="بطاقة الناخب"
                     className="h-auto w-full object-contain"
                     data-testid="img-voter-id-card"

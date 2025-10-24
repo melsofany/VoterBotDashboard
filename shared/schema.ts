@@ -11,6 +11,7 @@ export const voters = pgTable("voters", {
   phoneNumber: text("phone_number").notNull(),
   latitude: real("latitude"),
   longitude: real("longitude"),
+  address: text("address"),
   stance: text("stance").notNull(), // "supporter", "opponent", "neutral"
   idCardImageUrl: text("id_card_image_url"),
   representativeId: text("representative_id").notNull(),

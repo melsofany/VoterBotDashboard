@@ -8,12 +8,13 @@ import sharp from 'sharp';
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 
 interface UserSession {
-  step: 'idle' | 'awaiting_photo' | 'awaiting_data_confirmation' | 'awaiting_manual_national_id' | 'awaiting_manual_name' | 'awaiting_location' | 'awaiting_family' | 'awaiting_phone' | 'awaiting_stance';
+  step: 'idle' | 'awaiting_photo' | 'awaiting_data_confirmation' | 'awaiting_manual_national_id' | 'awaiting_manual_name' | 'awaiting_location' | 'awaiting_manual_address' | 'awaiting_family' | 'awaiting_phone' | 'awaiting_stance';
   nationalId?: string;
   fullName?: string;
   photoBuffer?: Buffer;
   latitude?: number;
   longitude?: number;
+  address?: string;
   familyName?: string;
   phoneNumber?: string;
   representativeId: string;
@@ -204,7 +205,49 @@ export async function startTelegramBot() {
       return;
     }
 
+    // Handle manual address entry option
+    if (text === '🏠 إدخال العنوان يدوياً' && session?.step === 'awaiting_location') {
+      session.step = 'awaiting_manual_address';
+      await bot.sendMessage(
+        chatId,
+        '🏠 من فضلك أدخل العنوان:\n' +
+        '(مثال: 15 شارع الجمهورية، المنصورة، الدقهلية)',
+        {
+          reply_markup: {
+            keyboard: [[{ text: '❌ إلغاء' }]],
+            resize_keyboard: true
+          }
+        }
+      );
+      return;
+    }
+
     if (!session) return;
+
+    // Handle manual address
+    if (session.step === 'awaiting_manual_address') {
+      if (text.length < 5) {
+        await bot.sendMessage(chatId, '⚠️ يرجى إدخال عنوان صحيح (على الأقل 5 أحرف)');
+        return;
+      }
+
+      session.address = text;
+      session.step = 'awaiting_family';
+
+      await bot.sendMessage(
+        chatId,
+        '✅ تم حفظ العنوان\n\n' +
+        '👨‍👩‍👧‍👦 الخطوة التالية:\n' +
+        'أدخل اسم العائلة',
+        {
+          reply_markup: {
+            keyboard: [[{ text: '❌ إلغاء' }]],
+            resize_keyboard: true
+          }
+        }
+      );
+      return;
+    }
 
     // Handle manual national ID
     if (session.step === 'awaiting_manual_national_id') {
@@ -348,11 +391,12 @@ export async function startTelegramBot() {
       
       await bot.sendMessage(
         chatId,
-        '📍 الخطوة التالية:\nشارك موقع الناخب الحالي',
+        '📍 الخطوة التالية:\nشارك موقع الناخب الحالي أو أدخل العنوان يدوياً',
         {
           reply_markup: {
             keyboard: [
               [{ text: '📍 مشاركة الموقع', request_location: true }],
+              [{ text: '🏠 إدخال العنوان يدوياً' }],
               [{ text: '⏭️ تخطي الموقع' }],
               [{ text: '❌ إلغاء' }]
             ],
@@ -424,6 +468,7 @@ export async function startTelegramBot() {
         phoneNumber: session.phoneNumber!,
         latitude: session.latitude || null,
         longitude: session.longitude || null,
+        address: session.address || null,
         stance: stance,
         idCardImageUrl: imageUrl,
         representativeId: session.representativeId,
@@ -459,13 +504,32 @@ export async function startTelegramBot() {
 
       // Clear session
       sessions.delete(chatId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving voter:', error);
-      await bot.sendMessage(
-        chatId,
-        '❌ حدث خطأ أثناء حفظ البيانات. يرجى المحاولة مرة أخرى.\n\n' +
-        'أرسل /start للبدء من جديد'
-      );
+      
+      let errorMessage = '❌ حدث خطأ أثناء حفظ البيانات.\n\n';
+      
+      if (error.message && error.message.includes('موجود بالفعل في النظام')) {
+        errorMessage = `❌ ${error.message}\n\n` +
+          'يرجى التحقق من البيانات المدخلة.\n\n' +
+          'أرسل /start للبدء من جديد';
+      } else if (error.message && error.message.includes('Google')) {
+        errorMessage = '❌ حدث خطأ في الاتصال مع خدمة التخزين.\n\n' +
+          'يرجى المحاولة مرة أخرى بعد قليل.\n\n' +
+          'أرسل /start للبدء من جديد';
+      } else {
+        errorMessage = '❌ حدث خطأ أثناء حفظ البيانات.\n\n' +
+          `التفاصيل: ${error.message || 'خطأ غير معروف'}\n\n` +
+          'أرسل /start للبدء من جديد';
+      }
+      
+      await bot.sendMessage(chatId, errorMessage);
+      console.error('🔍 Detailed error for voter saving:', {
+        nationalId: session.nationalId,
+        phoneNumber: session.phoneNumber,
+        error: error.message,
+        stack: error.stack
+      });
     }
   });
 
