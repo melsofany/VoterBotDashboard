@@ -51,19 +51,44 @@ export async function startTelegramBot() {
       representativeName: msg.from?.first_name || undefined
     });
 
+    const webAppUrl = process.env.REPLIT_DOMAINS 
+      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}/telegram-mini-app`
+      : 'http://localhost:5000/telegram-mini-app';
+
     await bot.sendMessage(
       chatId,
       '🎉 مرحباً بك في نظام جمع بيانات الناخبين\n' +
       'حملة المرشح علاء سليمان الحديوي\n\n' +
-      '📸 الخطوة الأولى:\n' +
-      'من فضلك قم بإرسال صورة واضحة لبطاقة الرقم القومي للناخب',
+      '📸 اختر طريقة إرسال الصورة:',
       {
         reply_markup: {
-          keyboard: [[{ text: '❌ إلغاء' }]],
-          resize_keyboard: true
+          inline_keyboard: [
+            [{ text: '📱 فتح الكاميرا الذكية', web_app: { url: webAppUrl } }],
+            [{ text: '🖼️ إرسال صورة عادية', callback_data: 'send_regular_photo' }]
+          ]
         }
       }
     );
+  });
+
+  // Handle callback for sending regular photo
+  bot.on('callback_query', async (query) => {
+    if (query.data === 'send_regular_photo') {
+      const chatId = query.message?.chat.id;
+      if (chatId) {
+        await bot.answerCallbackQuery(query.id);
+        await bot.sendMessage(
+          chatId,
+          '📸 من فضلك قم بإرسال صورة واضحة لبطاقة الرقم القومي للناخب',
+          {
+            reply_markup: {
+              keyboard: [[{ text: '❌ إلغاء' }]],
+              resize_keyboard: true
+            }
+          }
+        );
+      }
+    }
   });
 
   // Handle photo

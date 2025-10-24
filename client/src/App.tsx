@@ -9,6 +9,7 @@ import Voters from "@/pages/Voters";
 import Representatives from "@/pages/Representatives";
 import Analytics from "@/pages/Analytics";
 import Login from "@/pages/Login";
+import TelegramMiniApp from "@/pages/TelegramMiniApp";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -47,6 +48,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/telegram-mini-app" component={TelegramMiniApp} />
       <Route path="/">
         <ProtectedRoute component={() => (
           <DashboardLayout>
