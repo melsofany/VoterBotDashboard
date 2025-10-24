@@ -18,6 +18,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/login", (req, res, next) => {
     passport.authenticate('local', (err: any, user: any, info: any) => {
       if (err) {
+        console.error('Auth error:', err);
         return res.status(500).json({ message: 'Authentication error' });
       }
       if (!user) {
@@ -25,8 +26,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       req.logIn(user, (err) => {
         if (err) {
+          console.error('Login error:', err);
           return res.status(500).json({ message: 'Login error' });
         }
+        console.log('✅ User logged in successfully:', user.username);
+        console.log('Session ID:', req.sessionID);
+        console.log('Session:', req.session);
         return res.json({ success: true, user: { username: user.username } });
       });
     })(req, res, next);
@@ -42,6 +47,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/me", (req, res) => {
+    console.log('GET /api/me - SessionID:', req.sessionID);
+    console.log('GET /api/me - Session:', req.session);
+    console.log('GET /api/me - isAuthenticated:', req.isAuthenticated());
+    console.log('GET /api/me - User:', req.user);
+    
     if (req.isAuthenticated()) {
       res.json({ user: req.user });
     } else {

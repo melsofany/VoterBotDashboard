@@ -10,6 +10,7 @@ export function setupAuth(app: Express) {
   // Session configuration
   app.use(
     session({
+      name: 'voter.session',
       secret: process.env.SESSION_SECRET || 'voter-management-secret-key-change-in-production',
       resave: false,
       saveUninitialized: false,
@@ -20,6 +21,7 @@ export function setupAuth(app: Express) {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
       },
     })
   );
