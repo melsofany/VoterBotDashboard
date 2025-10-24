@@ -11,6 +11,9 @@ export function setupAuth(app: Express) {
   app.set('trust proxy', 1);
   
   // Session configuration
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isReplit = !!process.env.REPL_ID;
+  
   app.use(
     session({
       name: 'voter.session',
@@ -23,7 +26,8 @@ export function setupAuth(app: Express) {
       cookie: {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         httpOnly: true,
-        secure: false,
+        secure: isProduction || isReplit,
+        sameSite: (isProduction || isReplit) ? 'none' : 'lax',
       },
     })
   );
