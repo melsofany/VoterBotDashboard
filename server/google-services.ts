@@ -1,17 +1,66 @@
 import { google } from 'googleapis';
 
 let auth: any = null;
+let oauthClient: any = null;
+
+export function getOAuth2Client() {
+  if (oauthClient) {
+    return oauthClient;
+  }
+
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const redirectUri = process.env.REPLIT_DOMAINS 
+    ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}/auth/google/callback`
+    : 'http://localhost:5000/auth/google/callback';
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing OAuth credentials: GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET');
+  }
+
+  oauthClient = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  return oauthClient;
+}
+
+export function getAuthUrl() {
+  const oauth2Client = getOAuth2Client();
+  return oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive'
+    ],
+    prompt: 'consent'
+  });
+}
+
+export async function getTokensFromCode(code: string) {
+  const oauth2Client = getOAuth2Client();
+  const { tokens } = await oauth2Client.getToken(code);
+  oauth2Client.setCredentials(tokens);
+  return tokens;
+}
+
+export function setOAuthCredentials(tokens: any) {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials(tokens);
+  auth = oauth2Client;
+}
 
 function getGoogleAuth() {
   if (auth) {
     return auth;
   }
 
+  const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const serviceAccountPrivateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-  if (serviceAccountJson) {
+  if (oauthClientId) {
+    return getOAuth2Client();
+  } else if (serviceAccountJson) {
     try {
       const credentials = JSON.parse(serviceAccountJson);
       
@@ -49,11 +98,14 @@ function getGoogleAuth() {
     return auth;
   } else {
     throw new Error(
-      'Missing Google Service Account credentials.\n\n' +
+      'Missing Google credentials.\n\n' +
       'Please add ONE of the following options:\n\n' +
-      'Option 1 (Recommended - Easier):\n' +
+      'Option 1 (OAuth - Recommended):\n' +
+      '  GOOGLE_OAUTH_CLIENT_ID\n' +
+      '  GOOGLE_OAUTH_CLIENT_SECRET\n\n' +
+      'Option 2 (Service Account):\n' +
       '  GOOGLE_SERVICE_ACCOUNT_JSON = {entire JSON file contents}\n\n' +
-      'Option 2:\n' +
+      'Option 3 (Service Account Alternative):\n' +
       '  GOOGLE_SERVICE_ACCOUNT_EMAIL = xxx@xxx.iam.gserviceaccount.com\n' +
       '  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = -----BEGIN PRIVATE KEY-----...\n\n' +
       'See GOOGLE_SERVICE_ACCOUNT_GUIDE.md for detailed instructions.'
