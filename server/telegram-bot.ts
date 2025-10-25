@@ -81,9 +81,15 @@ export async function startTelegramBot(app?: Express) {
       representativeName: msg.from?.first_name || undefined
     });
 
-    const webAppUrl = process.env.REPLIT_DOMAINS 
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}/telegram-mini-app`
-      : 'http://localhost:5000/telegram-mini-app';
+    let webAppUrl = 'http://localhost:5000/telegram-mini-app';
+    
+    if (process.env.REPLIT_DOMAINS) {
+      webAppUrl = `https://${process.env.REPLIT_DOMAINS.split(',')[0]}/telegram-mini-app`;
+    } else if (process.env.RENDER_EXTERNAL_URL) {
+      webAppUrl = `${process.env.RENDER_EXTERNAL_URL}/telegram-mini-app`;
+    } else if (process.env.WEBHOOK_URL) {
+      webAppUrl = `${process.env.WEBHOOK_URL}/telegram-mini-app`;
+    }
 
     await bot.sendMessage(
       chatId,
