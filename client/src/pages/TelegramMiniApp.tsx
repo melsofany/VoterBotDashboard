@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 // التعريفات والثوابت
 // =============================================
 
-const EGYPTIAN_ID_ASPECT_RATIO = 1.586; // نسبة البطاقة المصرية الدقيقة (85.60 / 53.98)
+const EGYPTIAN_ID_ASPECT_RATIO = 2.16; // نسبة البطاقة المصرية العرضية (80 / 37)
 const FRAME_WIDTH_PERCENT = 0.80; // 80% من عرض الشاشة
 const CAMERA_RESOLUTION = {
   width: { ideal: 1920 },
@@ -549,12 +549,12 @@ export default function TelegramMiniApp() {
               <svg
                 className="absolute inset-0 w-full h-full pointer-events-none"
                 viewBox="0 0 100 100"
-                preserveAspectRatio="none"
+                preserveAspectRatio="xMidYMid slice"
               >
                 <defs>
                   <mask id="card-mask">
                     <rect width="100" height="100" fill="white" />
-                    <rect x="10" y="25.2" width="80" height="50.4" rx="1.5" fill="black" />
+                    <rect x="10" y="31.5" width="80" height="37" rx="1.5" fill="black" />
                   </mask>
                 </defs>
                 
@@ -569,9 +569,9 @@ export default function TelegramMiniApp() {
                 {/* الإطار الأبيض الخارجي */}
                 <rect
                   x="9.5"
-                  y="24.7"
+                  y="31"
                   width="81"
-                  height="51.4"
+                  height="38"
                   rx="2"
                   fill="none"
                   stroke="white"
@@ -581,10 +581,10 @@ export default function TelegramMiniApp() {
                 
                 {/* الزوايا المميزة */}
                 {[
-                  { x: 10, y: 25.2, path: 'M 10 30 L 10 25.2 L 15 25.2' },
-                  { x: 90, y: 25.2, path: 'M 85 25.2 L 90 25.2 L 90 30' },
-                  { x: 10, y: 75.6, path: 'M 10 71 L 10 75.6 L 15 75.6' },
-                  { x: 90, y: 75.6, path: 'M 85 75.6 L 90 75.6 L 90 71' }
+                  { x: 10, y: 31.5, path: 'M 10 36.5 L 10 31.5 L 15 31.5' },
+                  { x: 90, y: 31.5, path: 'M 85 31.5 L 90 31.5 L 90 36.5' },
+                  { x: 10, y: 68.5, path: 'M 10 63.5 L 10 68.5 L 15 68.5' },
+                  { x: 90, y: 68.5, path: 'M 85 68.5 L 90 68.5 L 90 63.5' }
                 ].map((corner, i) => (
                   <path
                     key={i}
@@ -600,10 +600,10 @@ export default function TelegramMiniApp() {
                 
                 {/* مؤشرات الحواف */}
                 {[
-                  { x: 50, y: 25.2, detected: edgesDetected.top, label: 'top' },
-                  { x: 90, y: 50.4, detected: edgesDetected.right, label: 'right' },
-                  { x: 50, y: 75.6, detected: edgesDetected.bottom, label: 'bottom' },
-                  { x: 10, y: 50.4, detected: edgesDetected.left, label: 'left' }
+                  { x: 50, y: 31.5, detected: edgesDetected.top, label: 'top' },
+                  { x: 90, y: 50, detected: edgesDetected.right, label: 'right' },
+                  { x: 50, y: 68.5, detected: edgesDetected.bottom, label: 'bottom' },
+                  { x: 10, y: 50, detected: edgesDetected.left, label: 'left' }
                 ].map((indicator, i) => (
                   <circle
                     key={i}
