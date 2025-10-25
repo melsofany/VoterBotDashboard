@@ -246,6 +246,7 @@ export default function TelegramMiniApp() {
     bottom: false,
     left: false
   });
+  const [activeTab, setActiveTab] = useState<'front' | 'back'>('front');
   
   const { toast } = useToast();
   
@@ -486,20 +487,54 @@ export default function TelegramMiniApp() {
   // =============================================
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-3" dir="rtl">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-            📸 مسح البطاقة الشخصية
+        <div className="text-center mb-3">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            التحقق من البطاقة
           </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            ضع البطاقة داخل الإطار - سيتم الالتقاط تلقائياً
-          </p>
+          
+          {/* Tabs */}
+          {!capturedImage && (
+            <div className="flex gap-2 max-w-sm mx-auto mb-3">
+              <button
+                onClick={() => setActiveTab('front')}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
+                  activeTab === 'front'
+                    ? 'bg-teal-500 text-white shadow-md'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
+                }`}
+                data-testid="tab-front"
+              >
+                تصوير الوجه الأمامي
+              </button>
+              <button
+                onClick={() => setActiveTab('back')}
+                className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
+                  activeTab === 'back'
+                    ? 'bg-teal-500 text-white shadow-md'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
+                }`}
+                data-testid="tab-back"
+              >
+                تصوير الوجه الخلفي
+              </button>
+            </div>
+          )}
         </div>
 
         {!capturedImage ? (
           <Card className="overflow-hidden shadow-2xl">
             <div className="relative bg-black">
+              {/* رسالة توجيهية في الأعلى */}
+              <div className="absolute top-4 left-0 right-0 z-10 flex justify-center">
+                <div className="bg-black/75 backdrop-blur-sm rounded-full px-4 py-2">
+                  <p className="text-white text-xs font-semibold text-center">
+                    {activeTab === 'front' ? '📸 ضع الوجه الأمامي للبطاقة داخل الإطار' : '📸 ضع الوجه الخلفي للبطاقة داخل الإطار'}
+                  </p>
+                </div>
+              </div>
+              
               <video
                 ref={videoRef}
                 className="w-full h-auto"
@@ -527,99 +562,80 @@ export default function TelegramMiniApp() {
                 <rect
                   width="100"
                   height="100"
-                  fill="rgba(0,0,0,0.6)"
+                  fill="rgba(0,0,0,0.65)"
                   mask="url(#card-mask)"
                 />
                 
-                {/* الحواف الأربعة */}
-                <line
-                  x1="10" y1="25.2"
-                  x2="90" y2="25.2"
-                  stroke={edgesDetected.top ? '#10b981' : '#f59e0b'}
-                  strokeWidth="0.8"
-                  strokeLinecap="round"
-                />
-                <line
-                  x1="90" y1="25.2"
-                  x2="90" y2="75.6"
-                  stroke={edgesDetected.right ? '#10b981' : '#f59e0b'}
-                  strokeWidth="0.8"
-                  strokeLinecap="round"
-                />
-                <line
-                  x1="90" y1="75.6"
-                  x2="10" y2="75.6"
-                  stroke={edgesDetected.bottom ? '#10b981' : '#f59e0b'}
-                  strokeWidth="0.8"
-                  strokeLinecap="round"
-                />
-                <line
-                  x1="10" y1="75.6"
-                  x2="10" y2="25.2"
-                  stroke={edgesDetected.left ? '#10b981' : '#f59e0b'}
-                  strokeWidth="0.8"
-                  strokeLinecap="round"
+                {/* الإطار الأبيض الخارجي */}
+                <rect
+                  x="9.5"
+                  y="24.7"
+                  width="81"
+                  height="51.4"
+                  rx="2"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="1.2"
+                  className={allEdgesDetected ? 'animate-pulse' : ''}
                 />
                 
-                {/* خطوط مساعدة */}
-                <line x1="10" y1="50.4" x2="90" y2="50.4" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
-                <line x1="50" y1="25.2" x2="50" y2="75.6" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
-                
-                {/* الأركان */}
+                {/* الزوايا المميزة */}
                 {[
-                  { x: 10, y: 25.2, detected: edgesDetected.top && edgesDetected.left },
-                  { x: 90, y: 25.2, detected: edgesDetected.top && edgesDetected.right },
-                  { x: 10, y: 75.6, detected: edgesDetected.bottom && edgesDetected.left },
-                  { x: 90, y: 75.6, detected: edgesDetected.bottom && edgesDetected.right }
+                  { x: 10, y: 25.2, path: 'M 10 30 L 10 25.2 L 15 25.2' },
+                  { x: 90, y: 25.2, path: 'M 85 25.2 L 90 25.2 L 90 30' },
+                  { x: 10, y: 75.6, path: 'M 10 71 L 10 75.6 L 15 75.6' },
+                  { x: 90, y: 75.6, path: 'M 85 75.6 L 90 75.6 L 90 71' }
                 ].map((corner, i) => (
+                  <path
+                    key={i}
+                    d={corner.path}
+                    fill="none"
+                    stroke={allEdgesDetected ? '#10b981' : '#14b8a6'}
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={allEdgesDetected ? 'animate-pulse' : ''}
+                  />
+                ))}
+                
+                {/* مؤشرات الحواف */}
+                {[
+                  { x: 50, y: 25.2, detected: edgesDetected.top, label: 'top' },
+                  { x: 90, y: 50.4, detected: edgesDetected.right, label: 'right' },
+                  { x: 50, y: 75.6, detected: edgesDetected.bottom, label: 'bottom' },
+                  { x: 10, y: 50.4, detected: edgesDetected.left, label: 'left' }
+                ].map((indicator, i) => (
                   <circle
                     key={i}
-                    cx={corner.x}
-                    cy={corner.y}
-                    r="1.2"
-                    fill={corner.detected ? '#10b981' : '#f59e0b'}
-                    className={corner.detected ? 'animate-pulse' : ''}
+                    cx={indicator.x}
+                    cy={indicator.y}
+                    r="0.8"
+                    fill={indicator.detected ? '#10b981' : 'rgba(255,255,255,0.3)'}
+                    className={indicator.detected ? 'animate-pulse' : ''}
                   />
                 ))}
               </svg>
               
-              {/* مؤشرات الجودة */}
-              <div className="absolute bottom-3 left-0 right-0 px-3">
-                <div className="bg-black/75 backdrop-blur-sm rounded-lg p-2.5 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white">الإضاءة:</span>
-                    <span className={`font-bold ${getQualityColor(brightness, 'brightness')}`}>
-                      {brightness.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white">الوضوح:</span>
-                    <span className={`font-bold ${getQualityColor(sharpness, 'sharpness')}`}>
-                      {sharpness.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1 mt-2">
-                    {[
-                      { label: 'العلوي', detected: edgesDetected.top },
-                      { label: 'الأيمن', detected: edgesDetected.right },
-                      { label: 'السفلي', detected: edgesDetected.bottom },
-                      { label: 'الأيسر', detected: edgesDetected.left }
-                    ].map((edge, i) => (
-                      <div key={i} className="text-center">
-                        <div className={`w-full h-1 rounded-full mb-0.5 ${edge.detected ? 'bg-green-500' : 'bg-gray-400'}`} />
-                        <span className={`text-[10px] ${edge.detected ? 'text-green-400' : 'text-gray-400'}`}>
-                          {edge.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {isGoodQuality && (
-                    <div className="flex items-center justify-center gap-2 text-green-400 text-xs mt-2 animate-pulse">
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      <span className="font-semibold">جاهز للالتقاط...</span>
+              {/* مؤشر الجاهزية */}
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                {isGoodQuality ? (
+                  <div className="bg-green-500 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg animate-pulse">
+                    <div className="flex items-center gap-2 text-white">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-bold text-sm">يتم الالتقاط الآن...</span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="bg-black/75 backdrop-blur-sm rounded-full px-5 py-2.5">
+                    <p className="text-white text-xs font-medium">
+                      {!allEdgesDetected ? '⚠️ حرّك البطاقة لتظهر داخل الإطار بالكامل' :
+                       brightness < QUALITY_THRESHOLDS.brightness.min ? '💡 الإضاءة ضعيفة - حرك البطاقة لمكان أكثر إضاءة' :
+                       brightness > QUALITY_THRESHOLDS.brightness.max ? '☀️ الإضاءة قوية جداً - تجنب الضوء المباشر' :
+                       sharpness < QUALITY_THRESHOLDS.sharpness.min ? '📷 ثبّت الهاتف للحصول على صورة أوضح' :
+                       '✓ استمر في التثبيت...'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             
