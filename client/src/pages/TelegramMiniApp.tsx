@@ -1,8 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
-import { Camera, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Camera, CheckCircle, AlertCircle, Loader2, ZapOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+
+// =============================================
+// التعريفات والثوابت
+// =============================================
+
+const EGYPTIAN_ID_ASPECT_RATIO = 1.586; // نسبة البطاقة المصرية الدقيقة (85.60 / 53.98)
+const FRAME_WIDTH_PERCENT = 0.80; // 80% من عرض الشاشة
+const CAMERA_RESOLUTION = {
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  aspectRatio: { ideal: 16/9 }
+};
+
+const QUALITY_THRESHOLDS = {
+  brightness: { min: 40, max: 85 },
+  sharpness: { min: 15 },
+  edgeThreshold: 40
+};
+
+const CHECK_INTERVAL = 300; // ms
 
 declare global {
   interface Window {
@@ -11,28 +31,15 @@ declare global {
         ready: () => void;
         expand: () => void;
         close: () => void;
-        MainButton: {
-          text: string;
-          show: () => void;
-          hide: () => void;
-          onClick: (callback: () => void) => void;
-        };
         BackButton: {
           show: () => void;
           hide: () => void;
           onClick: (callback: () => void) => void;
         };
         showAlert: (message: string) => void;
-        showConfirm: (message: string, callback: (confirmed: boolean) => void) => void;
       };
     };
   }
-}
-
-interface OCRResult {
-  nationalId: string | null;
-  fullName: string | null;
-  address: string | null;
 }
 
 interface EdgeDetection {
@@ -42,12 +49,191 @@ interface EdgeDetection {
   left: boolean;
 }
 
+interface QualityMetrics {
+  brightness: number;
+  sharpness: number;
+  edges: EdgeDetection;
+}
+
+interface OCRResult {
+  nationalId: string | null;
+  fullName: string | null;
+  address: string | null;
+}
+
+// =============================================
+// دوال مساعدة لمعالجة الصور
+// =============================================
+
+/**
+ * حساب أبعاد إطار البطاقة
+ */
+function calculateFrameDimensions(videoWidth: number, videoHeight: number) {
+  const frameWidth = Math.floor(videoWidth * FRAME_WIDTH_PERCENT);
+  const frameHeight = Math.floor(frameWidth / EGYPTIAN_ID_ASPECT_RATIO);
+  const frameX = Math.floor((videoWidth - frameWidth) / 2);
+  const frameY = Math.floor((videoHeight - frameHeight) / 2);
+  
+  return { frameWidth, frameHeight, frameX, frameY };
+}
+
+/**
+ * كشف حافة واحدة من البطاقة
+ */
+function detectSingleEdge(
+  imageData: ImageData,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  direction: 'horizontal' | 'vertical',
+  threshold: number
+): boolean {
+  const data = imageData.data;
+  const width = imageData.width;
+  
+  const getPixel = (x: number, y: number) => {
+    const idx = (y * width + x) * 4;
+    return (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+  };
+  
+  let edgeCount = 0;
+  const sampleInterval = 5;
+  let totalSamples = 0;
+  
+  if (direction === 'horizontal') {
+    for (let x = x1; x < x2; x += sampleInterval) {
+      const inside = getPixel(x, y1);
+      const outside = getPixel(x, Math.max(0, y1 - 3));
+      if (Math.abs(inside - outside) > threshold) edgeCount++;
+      totalSamples++;
+    }
+  } else {
+    for (let y = y1; y < y2; y += sampleInterval) {
+      const inside = getPixel(x1, y);
+      const outside = getPixel(Math.max(0, x1 - 3), y);
+      if (Math.abs(inside - outside) > threshold) edgeCount++;
+      totalSamples++;
+    }
+  }
+  
+  return edgeCount > totalSamples / 15;
+}
+
+/**
+ * كشف جميع حواف البطاقة
+ */
+function detectAllEdges(
+  imageData: ImageData,
+  videoWidth: number,
+  videoHeight: number
+): EdgeDetection {
+  const { frameWidth, frameHeight, frameX, frameY } = calculateFrameDimensions(videoWidth, videoHeight);
+  const threshold = QUALITY_THRESHOLDS.edgeThreshold;
+  
+  return {
+    top: detectSingleEdge(imageData, frameX, frameY, frameX + frameWidth, frameY, 'horizontal', threshold),
+    bottom: detectSingleEdge(imageData, frameX, frameY + frameHeight, frameX + frameWidth, frameY + frameHeight, 'horizontal', threshold),
+    left: detectSingleEdge(imageData, frameX, frameY, frameX, frameY + frameHeight, 'vertical', threshold),
+    right: detectSingleEdge(imageData, frameX + frameWidth, frameY, frameX + frameWidth, frameY + frameHeight, 'vertical', threshold)
+  };
+}
+
+/**
+ * حساب جودة الصورة (الإضاءة والوضوح)
+ */
+function calculateImageQuality(imageData: ImageData): Omit<QualityMetrics, 'edges'> {
+  const data = imageData.data;
+  let totalBrightness = 0;
+  let edges = 0;
+  
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const brightness = (r + g + b) / 3;
+    totalBrightness += brightness;
+    
+    if (i > 0) {
+      const prevR = data[i - 4];
+      const diff = Math.abs(r - prevR);
+      if (diff > 30) edges++;
+    }
+  }
+  
+  const avgBrightness = totalBrightness / (data.length / 4);
+  const normalizedBrightness = Math.max(0, Math.min(100, (avgBrightness / 255) * 100));
+  const normalizedSharpness = Math.min(100, (edges / (data.length / 4)) * 1000);
+  
+  return {
+    brightness: normalizedBrightness,
+    sharpness: normalizedSharpness
+  };
+}
+
+/**
+ * تحسين الصورة قبل الإرسال
+ */
+function enhanceImage(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+  
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  
+  // تحسين التباين
+  const contrast = 1.2;
+  const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = factor * (data[i] - 128) + 128;     // R
+    data[i + 1] = factor * (data[i + 1] - 128) + 128; // G
+    data[i + 2] = factor * (data[i + 2] - 128) + 128; // B
+  }
+  
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+/**
+ * قص الصورة حسب إطار البطاقة
+ */
+function cropToFrame(
+  sourceCanvas: HTMLCanvasElement,
+  videoWidth: number,
+  videoHeight: number
+): HTMLCanvasElement {
+  const { frameWidth, frameHeight, frameX, frameY } = calculateFrameDimensions(videoWidth, videoHeight);
+  
+  const croppedCanvas = document.createElement('canvas');
+  croppedCanvas.width = frameWidth;
+  croppedCanvas.height = frameHeight;
+  
+  const ctx = croppedCanvas.getContext('2d');
+  if (!ctx) return sourceCanvas;
+  
+  ctx.drawImage(
+    sourceCanvas,
+    frameX, frameY, frameWidth, frameHeight,
+    0, 0, frameWidth, frameHeight
+  );
+  
+  return croppedCanvas;
+}
+
+// =============================================
+// المكون الرئيسي
+// =============================================
+
 export default function TelegramMiniApp() {
+  // المراجع
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // الحالات
   const [isReady, setIsReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -60,34 +246,19 @@ export default function TelegramMiniApp() {
     bottom: false,
     left: false
   });
+  
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.ready();
-      window.Telegram.WebApp.expand();
-      window.Telegram.WebApp.BackButton.show();
-      window.Telegram.WebApp.BackButton.onClick(() => {
-        stopCamera();
-        window.Telegram?.WebApp?.close();
-      });
-    }
-    
-    startCamera();
-    
-    return () => {
-      stopCamera();
-    };
-  }, []);
-
-  const startCamera = async () => {
+  
+  // =============================================
+  // دوال الكاميرا
+  // =============================================
+  
+  const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          aspectRatio: { ideal: 16/9 }
+          ...CAMERA_RESOLUTION
         }
       });
       
@@ -109,124 +280,79 @@ export default function TelegramMiniApp() {
         variant: 'destructive'
       });
     }
-  };
-
-  const stopCamera = () => {
+  }, [toast]);
+  
+  const stopCamera = useCallback(() => {
+    if (checkIntervalRef.current) {
+      clearInterval(checkIntervalRef.current);
+      checkIntervalRef.current = null;
+    }
+    
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-  };
-
-  const detectEdges = (imageData: ImageData, videoWidth: number, videoHeight: number): EdgeDetection => {
-    const EGYPTIAN_ID_ASPECT_RATIO = 1.586;
-    const frameWidthPercent = 0.80;
-    const cardWidth = Math.floor(videoWidth * frameWidthPercent);
-    const cardHeight = Math.floor(cardWidth / EGYPTIAN_ID_ASPECT_RATIO);
-    const cardX = Math.floor((videoWidth - cardWidth) / 2);
-    const cardY = Math.floor((videoHeight - cardHeight) / 2);
-    
-    const edgeThreshold = 40;
-    const data = imageData.data;
-    const width = imageData.width;
-    
-    const getPixel = (x: number, y: number) => {
-      const idx = (y * width + x) * 4;
-      return (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-    };
-    
-    const checkEdge = (x1: number, y1: number, x2: number, y2: number, direction: 'horizontal' | 'vertical'): boolean => {
-      let edgeCount = 0;
-      const totalPoints = direction === 'horizontal' ? Math.abs(x2 - x1) : Math.abs(y2 - y1);
-      
-      if (direction === 'horizontal') {
-        for (let x = x1; x < x2; x += 5) {
-          const inside = getPixel(x, y1);
-          const outside = getPixel(x, Math.max(0, y1 - 3));
-          if (Math.abs(inside - outside) > edgeThreshold) edgeCount++;
-        }
-      } else {
-        for (let y = y1; y < y2; y += 5) {
-          const inside = getPixel(x1, y);
-          const outside = getPixel(Math.max(0, x1 - 3), y);
-          if (Math.abs(inside - outside) > edgeThreshold) edgeCount++;
-        }
-      }
-      
-      return edgeCount > totalPoints / 15;
-    };
-    
-    return {
-      top: checkEdge(cardX, cardY, cardX + cardWidth, cardY, 'horizontal'),
-      bottom: checkEdge(cardX, cardY + cardHeight, cardX + cardWidth, cardY + cardHeight, 'horizontal'),
-      left: checkEdge(cardX, cardY, cardX, cardY + cardHeight, 'vertical'),
-      right: checkEdge(cardX + cardWidth, cardY, cardX + cardWidth, cardY + cardHeight, 'vertical')
-    };
-  };
-
-  const calculateImageQuality = (imageData: ImageData, videoWidth: number, videoHeight: number) => {
-    const data = imageData.data;
-    let totalBrightness = 0;
-    let edges = 0;
-    
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const brightness = (r + g + b) / 3;
-      totalBrightness += brightness;
-      
-      if (i > 0) {
-        const prevR = data[i - 4];
-        const diff = Math.abs(r - prevR);
-        if (diff > 30) edges++;
-      }
+  }, []);
+  
+  // =============================================
+  // فحص الجودة التلقائي
+  // =============================================
+  
+  const checkQuality = useCallback(() => {
+    if (!videoRef.current || !overlayCanvasRef.current || isProcessing || capturedImage) {
+      return;
     }
     
-    const avgBrightness = totalBrightness / (data.length / 4);
-    const normalizedBrightness = Math.max(0, Math.min(100, (avgBrightness / 255) * 100));
+    const video = videoRef.current;
+    const canvas = overlayCanvasRef.current;
+    const ctx = canvas.getContext('2d');
     
-    const normalizedSharpness = Math.min(100, (edges / (data.length / 4)) * 1000);
+    if (!ctx || video.videoWidth === 0) return;
     
-    const edgeDetection = detectEdges(imageData, videoWidth, videoHeight);
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     
-    return { brightness: normalizedBrightness, sharpness: normalizedSharpness, edges: edgeDetection };
-  };
-
-  const startQualityCheck = () => {
-    const checkInterval = setInterval(() => {
-      if (videoRef.current && overlayCanvasRef.current && !isProcessing && !capturedImage) {
-        const video = videoRef.current;
-        const canvas = overlayCanvasRef.current;
-        const ctx = canvas.getContext('2d');
-        
-        if (ctx && video.videoWidth > 0) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const quality = calculateImageQuality(imageData, video.videoWidth, video.videoHeight);
-          
-          setBrightness(quality.brightness);
-          setSharpness(quality.sharpness);
-          setEdgesDetected(quality.edges);
-          
-          const allEdgesDetected = quality.edges.top && quality.edges.right && quality.edges.bottom && quality.edges.left;
-          
-          if (quality.brightness >= 40 && quality.brightness <= 85 && quality.sharpness >= 15 && allEdgesDetected) {
-            clearInterval(checkInterval);
-            capturePhoto();
-          }
-        }
-      }
-    }, 300);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     
-    return () => clearInterval(checkInterval);
-  };
-
-  const capturePhoto = async () => {
+    const quality = calculateImageQuality(imageData);
+    const edges = detectAllEdges(imageData, video.videoWidth, video.videoHeight);
+    
+    setBrightness(quality.brightness);
+    setSharpness(quality.sharpness);
+    setEdgesDetected(edges);
+    
+    // التقاط تلقائي عند تحقق الشروط
+    const allEdgesDetected = edges.top && edges.right && edges.bottom && edges.left;
+    const brightnessOk = quality.brightness >= QUALITY_THRESHOLDS.brightness.min && 
+                        quality.brightness <= QUALITY_THRESHOLDS.brightness.max;
+    const sharpnessOk = quality.sharpness >= QUALITY_THRESHOLDS.sharpness.min;
+    
+    if (brightnessOk && sharpnessOk && allEdgesDetected) {
+      capturePhoto();
+    }
+  }, [isProcessing, capturedImage]);
+  
+  const startQualityCheck = useCallback(() => {
+    if (checkIntervalRef.current) {
+      clearInterval(checkIntervalRef.current);
+    }
+    
+    checkIntervalRef.current = setInterval(checkQuality, CHECK_INTERVAL);
+  }, [checkQuality]);
+  
+  // =============================================
+  // التقاط ومعالجة الصورة
+  // =============================================
+  
+  const capturePhoto = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current) return;
+    
+    // إيقاف الفحص التلقائي
+    if (checkIntervalRef.current) {
+      clearInterval(checkIntervalRef.current);
+      checkIntervalRef.current = null;
+    }
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -234,18 +360,26 @@ export default function TelegramMiniApp() {
     
     if (!ctx) return;
     
+    // التقاط الصورة الكاملة
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    // قص الصورة حسب الإطار
+    const croppedCanvas = cropToFrame(canvas, video.videoWidth, video.videoHeight);
+    
+    // تحسين الصورة
+    const enhancedCanvas = enhanceImage(croppedCanvas);
+    
+    // تحويل إلى DataURL
+    const imageDataUrl = enhancedCanvas.toDataURL('image/jpeg', 0.95);
     setCapturedImage(imageDataUrl);
     stopCamera();
     
     await processImage(imageDataUrl);
-  };
-
-  const processImage = async (imageDataUrl: string) => {
+  }, [stopCamera]);
+  
+  const processImage = useCallback(async (imageDataUrl: string) => {
     setIsProcessing(true);
     
     try {
@@ -289,29 +423,68 @@ export default function TelegramMiniApp() {
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const retakePhoto = () => {
+  }, [toast]);
+  
+  const retakePhoto = useCallback(() => {
     setCapturedImage(null);
     setResult(null);
+    setBrightness(0);
+    setSharpness(0);
+    setEdgesDetected({ top: false, right: false, bottom: false, left: false });
     startCamera();
-  };
-
+  }, [startCamera]);
+  
+  // =============================================
+  // تأثيرات React
+  // =============================================
+  
+  useEffect(() => {
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+      window.Telegram.WebApp.BackButton.show();
+      window.Telegram.WebApp.BackButton.onClick(() => {
+        stopCamera();
+        window.Telegram?.WebApp?.close();
+      });
+    }
+    
+    startCamera();
+    
+    return () => {
+      stopCamera();
+    };
+  }, [startCamera, stopCamera]);
+  
+  // =============================================
+  // دوال مساعدة للواجهة
+  // =============================================
+  
   const getQualityColor = (value: number, type: 'brightness' | 'sharpness') => {
     if (type === 'brightness') {
-      if (value >= 40 && value <= 85) return 'text-green-500';
-      if (value >= 30 && value <= 95) return 'text-yellow-500';
+      const { min, max } = QUALITY_THRESHOLDS.brightness;
+      if (value >= min && value <= max) return 'text-green-500';
+      if (value >= min - 10 && value <= max + 10) return 'text-yellow-500';
       return 'text-red-500';
     } else {
-      if (value >= 15) return 'text-green-500';
-      if (value >= 10) return 'text-yellow-500';
+      const { min } = QUALITY_THRESHOLDS.sharpness;
+      if (value >= min) return 'text-green-500';
+      if (value >= min - 5) return 'text-yellow-500';
       return 'text-red-500';
     }
   };
-
+  
   const allEdgesDetected = edgesDetected.top && edgesDetected.right && edgesDetected.bottom && edgesDetected.left;
-  const isGoodQuality = brightness >= 40 && brightness <= 85 && sharpness >= 15 && allEdgesDetected;
-
+  const isGoodQuality = 
+    brightness >= QUALITY_THRESHOLDS.brightness.min && 
+    brightness <= QUALITY_THRESHOLDS.brightness.max && 
+    sharpness >= QUALITY_THRESHOLDS.sharpness.min && 
+    allEdgesDetected;
+  
+  // =============================================
+  // واجهة المستخدم
+  // =============================================
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4" dir="rtl">
       <div className="max-w-2xl mx-auto">
@@ -337,6 +510,7 @@ export default function TelegramMiniApp() {
               
               <canvas ref={overlayCanvasRef} className="hidden" />
               
+              {/* إطار البطاقة والمؤشرات */}
               <svg
                 className="absolute inset-0 w-full h-full pointer-events-none"
                 viewBox="0 0 100 100"
@@ -349,6 +523,7 @@ export default function TelegramMiniApp() {
                   </mask>
                 </defs>
                 
+                {/* خلفية داكنة خارج الإطار */}
                 <rect
                   width="100"
                   height="100"
@@ -356,6 +531,7 @@ export default function TelegramMiniApp() {
                   mask="url(#card-mask)"
                 />
                 
+                {/* الحواف الأربعة */}
                 <line
                   x1="10" y1="25.2"
                   x2="90" y2="25.2"
@@ -363,7 +539,6 @@ export default function TelegramMiniApp() {
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
-                
                 <line
                   x1="90" y1="25.2"
                   x2="90" y2="75.6"
@@ -371,7 +546,6 @@ export default function TelegramMiniApp() {
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
-                
                 <line
                   x1="90" y1="75.6"
                   x2="10" y2="75.6"
@@ -379,7 +553,6 @@ export default function TelegramMiniApp() {
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
-                
                 <line
                   x1="10" y1="75.6"
                   x2="10" y2="25.2"
@@ -388,9 +561,11 @@ export default function TelegramMiniApp() {
                   strokeLinecap="round"
                 />
                 
+                {/* خطوط مساعدة */}
                 <line x1="10" y1="50.4" x2="90" y2="50.4" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
                 <line x1="50" y1="25.2" x2="50" y2="75.6" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
                 
+                {/* الأركان */}
                 {[
                   { x: 10, y: 25.2, detected: edgesDetected.top && edgesDetected.left },
                   { x: 90, y: 25.2, detected: edgesDetected.top && edgesDetected.right },
@@ -408,6 +583,7 @@ export default function TelegramMiniApp() {
                 ))}
               </svg>
               
+              {/* مؤشرات الجودة */}
               <div className="absolute bottom-3 left-0 right-0 px-3">
                 <div className="bg-black/75 backdrop-blur-sm rounded-lg p-2.5 space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
@@ -517,6 +693,7 @@ export default function TelegramMiniApp() {
             <li>• تأكد من إضاءة جيدة وتجنب الظلال</li>
             <li>• حاذي جميع حواف البطاقة مع الإطار</li>
             <li>• انتظر حتى تتحول جميع الحواف للأخضر</li>
+            <li>• ثبت الموبايل جيداً لوضوح أفضل</li>
           </ul>
         </div>
       </div>
