@@ -35,6 +35,13 @@ interface OCRResult {
   address: string | null;
 }
 
+interface EdgeDetection {
+  top: boolean;
+  right: boolean;
+  bottom: boolean;
+  left: boolean;
+}
+
 export default function TelegramMiniApp() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,6 +54,12 @@ export default function TelegramMiniApp() {
   const [result, setResult] = useState<OCRResult | null>(null);
   const [brightness, setBrightness] = useState(0);
   const [sharpness, setSharpness] = useState(0);
+  const [edgesDetected, setEdgesDetected] = useState<EdgeDetection>({
+    top: false,
+    right: false,
+    bottom: false,
+    left: false
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -72,8 +85,8 @@ export default function TelegramMiniApp() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
       });
       
@@ -104,7 +117,51 @@ export default function TelegramMiniApp() {
     }
   };
 
-  const calculateImageQuality = (imageData: ImageData) => {
+  const detectEdges = (imageData: ImageData, videoWidth: number, videoHeight: number): EdgeDetection => {
+    const cardX = Math.floor(videoWidth * 0.1);
+    const cardY = Math.floor(videoHeight * 0.28);
+    const cardWidth = Math.floor(videoWidth * 0.8);
+    const cardHeight = Math.floor(cardWidth / 1.57);
+    
+    const edgeThreshold = 40;
+    const data = imageData.data;
+    const width = imageData.width;
+    
+    const getPixel = (x: number, y: number) => {
+      const idx = (y * width + x) * 4;
+      return (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+    };
+    
+    const checkEdge = (x1: number, y1: number, x2: number, y2: number, direction: 'horizontal' | 'vertical'): boolean => {
+      let edgeCount = 0;
+      const totalPoints = direction === 'horizontal' ? Math.abs(x2 - x1) : Math.abs(y2 - y1);
+      
+      if (direction === 'horizontal') {
+        for (let x = x1; x < x2; x += 5) {
+          const inside = getPixel(x, y1);
+          const outside = getPixel(x, Math.max(0, y1 - 3));
+          if (Math.abs(inside - outside) > edgeThreshold) edgeCount++;
+        }
+      } else {
+        for (let y = y1; y < y2; y += 5) {
+          const inside = getPixel(x1, y);
+          const outside = getPixel(Math.max(0, x1 - 3), y);
+          if (Math.abs(inside - outside) > edgeThreshold) edgeCount++;
+        }
+      }
+      
+      return edgeCount > totalPoints / 15;
+    };
+    
+    return {
+      top: checkEdge(cardX, cardY, cardX + cardWidth, cardY, 'horizontal'),
+      bottom: checkEdge(cardX, cardY + cardHeight, cardX + cardWidth, cardY + cardHeight, 'horizontal'),
+      left: checkEdge(cardX, cardY, cardX, cardY + cardHeight, 'vertical'),
+      right: checkEdge(cardX + cardWidth, cardY, cardX + cardWidth, cardY + cardHeight, 'vertical')
+    };
+  };
+
+  const calculateImageQuality = (imageData: ImageData, videoWidth: number, videoHeight: number) => {
     const data = imageData.data;
     let totalBrightness = 0;
     let edges = 0;
@@ -128,7 +185,9 @@ export default function TelegramMiniApp() {
     
     const normalizedSharpness = Math.min(100, (edges / (data.length / 4)) * 1000);
     
-    return { brightness: normalizedBrightness, sharpness: normalizedSharpness };
+    const edgeDetection = detectEdges(imageData, videoWidth, videoHeight);
+    
+    return { brightness: normalizedBrightness, sharpness: normalizedSharpness, edges: edgeDetection };
   };
 
   const startQualityCheck = () => {
@@ -144,18 +203,21 @@ export default function TelegramMiniApp() {
           
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const quality = calculateImageQuality(imageData);
+          const quality = calculateImageQuality(imageData, video.videoWidth, video.videoHeight);
           
           setBrightness(quality.brightness);
           setSharpness(quality.sharpness);
+          setEdgesDetected(quality.edges);
           
-          if (quality.brightness >= 40 && quality.brightness <= 85 && quality.sharpness >= 15) {
+          const allEdgesDetected = quality.edges.top && quality.edges.right && quality.edges.bottom && quality.edges.left;
+          
+          if (quality.brightness >= 40 && quality.brightness <= 85 && quality.sharpness >= 15 && allEdgesDetected) {
             clearInterval(checkInterval);
             capturePhoto();
           }
         }
       }
-    }, 500);
+    }, 300);
     
     return () => clearInterval(checkInterval);
   };
@@ -244,17 +306,18 @@ export default function TelegramMiniApp() {
     }
   };
 
-  const isGoodQuality = brightness >= 40 && brightness <= 85 && sharpness >= 15;
+  const allEdgesDetected = edgesDetected.top && edgesDetected.right && edgesDetected.bottom && edgesDetected.left;
+  const isGoodQuality = brightness >= 40 && brightness <= 85 && sharpness >= 15 && allEdgesDetected;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4" dir="rtl">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+        <div className="text-center mb-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
             📸 مسح البطاقة الشخصية
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            ضع البطاقة داخل الإطار حتى يتم التقاطها تلقائياً
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            ضع البطاقة داخل الإطار - سيتم الالتقاط تلقائياً
           </p>
         </div>
 
@@ -279,66 +342,102 @@ export default function TelegramMiniApp() {
                 <defs>
                   <mask id="card-mask">
                     <rect width="100" height="100" fill="white" />
-                    <rect x="10" y="25" width="80" height="50" rx="2" fill="black" />
+                    <rect x="10" y="28" width="80" height="51" rx="1.5" fill="black" />
                   </mask>
                 </defs>
                 
                 <rect
                   width="100"
                   height="100"
-                  fill="rgba(0,0,0,0.5)"
+                  fill="rgba(0,0,0,0.6)"
                   mask="url(#card-mask)"
                 />
                 
-                <rect
-                  x="10"
-                  y="25"
-                  width="80"
-                  height="50"
-                  rx="2"
-                  fill="none"
-                  stroke={isGoodQuality ? '#10b981' : '#f59e0b'}
-                  strokeWidth="0.5"
-                  strokeDasharray={isGoodQuality ? '0' : '2 1'}
+                <line
+                  x1="10" y1="28"
+                  x2="90" y2="28"
+                  stroke={edgesDetected.top ? '#10b981' : '#f59e0b'}
+                  strokeWidth="0.8"
+                  strokeLinecap="round"
                 />
                 
-                <line x1="10" y1="50" x2="90" y2="50" stroke="rgba(255,255,255,0.3)" strokeWidth="0.2" />
-                <line x1="50" y1="25" x2="50" y2="75" stroke="rgba(255,255,255,0.3)" strokeWidth="0.2" />
+                <line
+                  x1="90" y1="28"
+                  x2="90" y2="79"
+                  stroke={edgesDetected.right ? '#10b981' : '#f59e0b'}
+                  strokeWidth="0.8"
+                  strokeLinecap="round"
+                />
+                
+                <line
+                  x1="90" y1="79"
+                  x2="10" y2="79"
+                  stroke={edgesDetected.bottom ? '#10b981' : '#f59e0b'}
+                  strokeWidth="0.8"
+                  strokeLinecap="round"
+                />
+                
+                <line
+                  x1="10" y1="79"
+                  x2="10" y2="28"
+                  stroke={edgesDetected.left ? '#10b981' : '#f59e0b'}
+                  strokeWidth="0.8"
+                  strokeLinecap="round"
+                />
+                
+                <line x1="10" y1="53.5" x2="90" y2="53.5" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
+                <line x1="50" y1="28" x2="50" y2="79" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
                 
                 {[
-                  { x: 10, y: 25 },
-                  { x: 90, y: 25 },
-                  { x: 10, y: 75 },
-                  { x: 90, y: 75 }
+                  { x: 10, y: 28, detected: edgesDetected.top && edgesDetected.left },
+                  { x: 90, y: 28, detected: edgesDetected.top && edgesDetected.right },
+                  { x: 10, y: 79, detected: edgesDetected.bottom && edgesDetected.left },
+                  { x: 90, y: 79, detected: edgesDetected.bottom && edgesDetected.right }
                 ].map((corner, i) => (
                   <circle
                     key={i}
                     cx={corner.x}
                     cy={corner.y}
-                    r="1"
-                    fill={isGoodQuality ? '#10b981' : '#f59e0b'}
+                    r="1.2"
+                    fill={corner.detected ? '#10b981' : '#f59e0b'}
+                    className={corner.detected ? 'animate-pulse' : ''}
                   />
                 ))}
               </svg>
               
-              <div className="absolute bottom-4 left-0 right-0 px-4">
-                <div className="bg-black/70 backdrop-blur-sm rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
+              <div className="absolute bottom-3 left-0 right-0 px-3">
+                <div className="bg-black/75 backdrop-blur-sm rounded-lg p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="text-white">الإضاءة:</span>
                     <span className={`font-bold ${getQualityColor(brightness, 'brightness')}`}>
                       {brightness.toFixed(0)}%
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="text-white">الوضوح:</span>
                     <span className={`font-bold ${getQualityColor(sharpness, 'sharpness')}`}>
                       {sharpness.toFixed(0)}%
                     </span>
                   </div>
+                  <div className="grid grid-cols-4 gap-1 mt-2">
+                    {[
+                      { label: 'العلوي', detected: edgesDetected.top },
+                      { label: 'الأيمن', detected: edgesDetected.right },
+                      { label: 'السفلي', detected: edgesDetected.bottom },
+                      { label: 'الأيسر', detected: edgesDetected.left }
+                    ].map((edge, i) => (
+                      <div key={i} className="text-center">
+                        <div className={`w-full h-1 rounded-full mb-0.5 ${edge.detected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        <span className={`text-[10px] ${edge.detected ? 'text-green-400' : 'text-gray-400'}`}>
+                          {edge.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                   {isGoodQuality && (
-                    <div className="flex items-center justify-center gap-2 text-green-400 text-sm mt-2 animate-pulse">
-                      <CheckCircle className="w-4 h-4" />
-                      <span>جاهز للالتقاط...</span>
+                    <div className="flex items-center justify-center gap-2 text-green-400 text-xs mt-2 animate-pulse">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span className="font-semibold">جاهز للالتقاط...</span>
                     </div>
                   )}
                 </div>
@@ -409,12 +508,12 @@ export default function TelegramMiniApp() {
           </Card>
         )}
 
-        <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-          <p>💡 نصائح للحصول على أفضل نتائج:</p>
-          <ul className="mt-2 space-y-1">
-            <li>• تأكد من وجود إضاءة جيدة</li>
-            <li>• ضع البطاقة بشكل مستوٍ</li>
-            <li>• تجنب الظلال والانعكاسات</li>
+        <div className="mt-4 text-center text-xs text-gray-600 dark:text-gray-400">
+          <p className="font-semibold mb-1">💡 للحصول على أفضل نتائج:</p>
+          <ul className="space-y-0.5">
+            <li>• تأكد من إضاءة جيدة وتجنب الظلال</li>
+            <li>• حاذي جميع حواف البطاقة مع الإطار</li>
+            <li>• انتظر حتى تتحول جميع الحواف للأخضر</li>
           </ul>
         </div>
       </div>
