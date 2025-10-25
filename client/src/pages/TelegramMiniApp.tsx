@@ -118,10 +118,10 @@ export default function TelegramMiniApp() {
   };
 
   const detectEdges = (imageData: ImageData, videoWidth: number, videoHeight: number): EdgeDetection => {
-    const cardX = Math.floor(videoWidth * 0.1);
-    const cardY = Math.floor(videoHeight * 0.28);
-    const cardWidth = Math.floor(videoWidth * 0.8);
+    const cardX = Math.floor(videoWidth * 0.175);
+    const cardWidth = Math.floor(videoWidth * 0.65);
     const cardHeight = Math.floor(cardWidth / 1.57);
+    const cardY = Math.floor((videoHeight - cardHeight) / 2);
     
     const edgeThreshold = 40;
     const data = imageData.data;
@@ -342,7 +342,7 @@ export default function TelegramMiniApp() {
                 <defs>
                   <mask id="card-mask">
                     <rect width="100" height="100" fill="white" />
-                    <rect x="10" y="28" width="80" height="51" rx="1.5" fill="black" />
+                    <rect x="17.5" y="29.3" width="65" height="41.4" rx="1.5" fill="black" />
                   </mask>
                 </defs>
                 
@@ -354,45 +354,45 @@ export default function TelegramMiniApp() {
                 />
                 
                 <line
-                  x1="10" y1="28"
-                  x2="90" y2="28"
+                  x1="17.5" y1="29.3"
+                  x2="82.5" y2="29.3"
                   stroke={edgesDetected.top ? '#10b981' : '#f59e0b'}
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
                 
                 <line
-                  x1="90" y1="28"
-                  x2="90" y2="79"
+                  x1="82.5" y1="29.3"
+                  x2="82.5" y2="70.7"
                   stroke={edgesDetected.right ? '#10b981' : '#f59e0b'}
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
                 
                 <line
-                  x1="90" y1="79"
-                  x2="10" y2="79"
+                  x1="82.5" y1="70.7"
+                  x2="17.5" y2="70.7"
                   stroke={edgesDetected.bottom ? '#10b981' : '#f59e0b'}
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
                 
                 <line
-                  x1="10" y1="79"
-                  x2="10" y2="28"
+                  x1="17.5" y1="70.7"
+                  x2="17.5" y2="29.3"
                   stroke={edgesDetected.left ? '#10b981' : '#f59e0b'}
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
                 
-                <line x1="10" y1="53.5" x2="90" y2="53.5" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
-                <line x1="50" y1="28" x2="50" y2="79" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
+                <line x1="17.5" y1="50" x2="82.5" y2="50" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
+                <line x1="50" y1="29.3" x2="50" y2="70.7" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
                 
                 {[
-                  { x: 10, y: 28, detected: edgesDetected.top && edgesDetected.left },
-                  { x: 90, y: 28, detected: edgesDetected.top && edgesDetected.right },
-                  { x: 10, y: 79, detected: edgesDetected.bottom && edgesDetected.left },
-                  { x: 90, y: 79, detected: edgesDetected.bottom && edgesDetected.right }
+                  { x: 17.5, y: 29.3, detected: edgesDetected.top && edgesDetected.left },
+                  { x: 82.5, y: 29.3, detected: edgesDetected.top && edgesDetected.right },
+                  { x: 17.5, y: 70.7, detected: edgesDetected.bottom && edgesDetected.left },
+                  { x: 82.5, y: 70.7, detected: edgesDetected.bottom && edgesDetected.right }
                 ].map((corner, i) => (
                   <circle
                     key={i}
