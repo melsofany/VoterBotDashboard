@@ -549,7 +549,7 @@ export default function TelegramMiniApp() {
               <svg
                 className="absolute inset-0 w-full h-full pointer-events-none"
                 viewBox="0 0 100 100"
-                preserveAspectRatio="xMidYMid slice"
+                preserveAspectRatio="none"
               >
                 <defs>
                   <mask id="card-mask">
@@ -568,30 +568,30 @@ export default function TelegramMiniApp() {
                 
                 {/* الإطار الأبيض الخارجي */}
                 <rect
-                  x="9.5"
-                  y="31"
-                  width="81"
-                  height="38"
+                  x="10"
+                  y="31.5"
+                  width="80"
+                  height="37"
                   rx="2"
                   fill="none"
                   stroke="white"
-                  strokeWidth="1.2"
+                  strokeWidth="0.6"
                   className={allEdgesDetected ? 'animate-pulse' : ''}
                 />
                 
                 {/* الزوايا المميزة */}
                 {[
-                  { x: 10, y: 31.5, path: 'M 10 36.5 L 10 31.5 L 15 31.5' },
-                  { x: 90, y: 31.5, path: 'M 85 31.5 L 90 31.5 L 90 36.5' },
-                  { x: 10, y: 68.5, path: 'M 10 63.5 L 10 68.5 L 15 68.5' },
-                  { x: 90, y: 68.5, path: 'M 85 68.5 L 90 68.5 L 90 63.5' }
+                  { x: 10, y: 31.5, path: 'M 10 37 L 10 31.5 L 15.5 31.5' },
+                  { x: 90, y: 31.5, path: 'M 84.5 31.5 L 90 31.5 L 90 37' },
+                  { x: 10, y: 68.5, path: 'M 10 63 L 10 68.5 L 15.5 68.5' },
+                  { x: 90, y: 68.5, path: 'M 84.5 68.5 L 90 68.5 L 90 63' }
                 ].map((corner, i) => (
                   <path
                     key={i}
                     d={corner.path}
                     fill="none"
                     stroke={allEdgesDetected ? '#10b981' : '#14b8a6'}
-                    strokeWidth="1.5"
+                    strokeWidth="1"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     className={allEdgesDetected ? 'animate-pulse' : ''}
@@ -609,33 +609,48 @@ export default function TelegramMiniApp() {
                     key={i}
                     cx={indicator.x}
                     cy={indicator.y}
-                    r="0.8"
-                    fill={indicator.detected ? '#10b981' : 'rgba(255,255,255,0.3)'}
+                    r="0.6"
+                    fill={indicator.detected ? '#10b981' : 'rgba(255,255,255,0.5)'}
                     className={indicator.detected ? 'animate-pulse' : ''}
                   />
                 ))}
               </svg>
               
-              {/* مؤشر الجاهزية */}
-              <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-                {isGoodQuality ? (
-                  <div className="bg-green-500 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg animate-pulse">
-                    <div className="flex items-center gap-2 text-white">
-                      <CheckCircle className="w-5 h-5" />
-                      <span className="font-bold text-sm">يتم الالتقاط الآن...</span>
+              {/* مؤشر الجاهزية وزر الالتقاط */}
+              <div className="absolute bottom-4 left-0 right-0 px-4">
+                <div className="flex flex-col items-center gap-2">
+                  {isGoodQuality ? (
+                    <div className="bg-green-500 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg animate-pulse">
+                      <div className="flex items-center gap-2 text-white">
+                        <CheckCircle className="w-5 h-5" />
+                        <span className="font-bold text-sm">يتم الالتقاط الآن...</span>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="bg-black/75 backdrop-blur-sm rounded-full px-5 py-2.5">
-                    <p className="text-white text-xs font-medium">
-                      {!allEdgesDetected ? '⚠️ حرّك البطاقة لتظهر داخل الإطار بالكامل' :
-                       brightness < QUALITY_THRESHOLDS.brightness.min ? '💡 الإضاءة ضعيفة - حرك البطاقة لمكان أكثر إضاءة' :
-                       brightness > QUALITY_THRESHOLDS.brightness.max ? '☀️ الإضاءة قوية جداً - تجنب الضوء المباشر' :
-                       sharpness < QUALITY_THRESHOLDS.sharpness.min ? '📷 ثبّت الهاتف للحصول على صورة أوضح' :
-                       '✓ استمر في التثبيت...'}
-                    </p>
-                  </div>
-                )}
+                  ) : (
+                    <>
+                      <div className="bg-black/75 backdrop-blur-sm rounded-full px-5 py-2.5">
+                        <p className="text-white text-xs font-medium text-center">
+                          {!allEdgesDetected ? '⚠️ حرّك البطاقة لتظهر داخل الإطار بالكامل' :
+                           brightness < QUALITY_THRESHOLDS.brightness.min ? '💡 الإضاءة ضعيفة - حرك البطاقة لمكان أكثر إضاءة' :
+                           brightness > QUALITY_THRESHOLDS.brightness.max ? '☀️ الإضاءة قوية جداً - تجنب الضوء المباشر' :
+                           sharpness < QUALITY_THRESHOLDS.sharpness.min ? '📷 ثبّت الهاتف للحصول على صورة أوضح' :
+                           '✓ استمر في التثبيت...'}
+                        </p>
+                      </div>
+                      {isReady && (
+                        <Button
+                          onClick={capturePhoto}
+                          disabled={isProcessing}
+                          className="bg-teal-500 hover:bg-teal-600 text-white rounded-full px-8 py-3 shadow-lg"
+                          data-testid="button-capture-manual"
+                        >
+                          <Camera className="w-5 h-5 mr-2" />
+                          <span className="font-bold">التقاط يدوي</span>
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
             
