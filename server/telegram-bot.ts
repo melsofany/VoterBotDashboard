@@ -27,7 +27,8 @@ const sessions = new Map<number, UserSession>();
 
 export async function startTelegramBot(app?: Express) {
   const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
-  const USE_WEBHOOK = process.env.NODE_ENV === 'production';
+  // Use webhook only if WEBHOOK_URL is explicitly set
+  const USE_WEBHOOK = !!WEBHOOK_URL;
 
   const bot = USE_WEBHOOK
     ? new TelegramBot(BOT_TOKEN)
@@ -35,8 +36,8 @@ export async function startTelegramBot(app?: Express) {
 
   console.log(`🤖 Telegram Bot started in ${USE_WEBHOOK ? 'WEBHOOK' : 'POLLING'} mode`);
 
-  // Setup webhook endpoint if in production
-  if (USE_WEBHOOK && app && WEBHOOK_URL) {
+  // Setup webhook endpoint if WEBHOOK_URL is set
+  if (USE_WEBHOOK && app) {
     const webhookPath = `/bot${BOT_TOKEN}`;
     
     app.post(webhookPath, express.json(), (req, res) => {
@@ -51,9 +52,6 @@ export async function startTelegramBot(app?: Express) {
       console.error('❌ Failed to set webhook:', error);
       throw error;
     }
-  } else if (USE_WEBHOOK && !WEBHOOK_URL) {
-    console.error('⚠️ Production mode requires WEBHOOK_URL environment variable!');
-    throw new Error('WEBHOOK_URL is required in production mode');
   }
 
   // Command: /start
