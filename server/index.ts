@@ -64,20 +64,8 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Import services
-    const { initializeSheets } = await import("./sheets-service");
-    const { startTelegramBot } = await import("./telegram-bot");
-    
-    // Initialize Google Sheets
-    log('🔄 Initializing Google Sheets...');
-    await initializeSheets();
-    
     // Register API routes first
     const server = await registerRoutes(app);
-    
-    // Start Telegram Bot (pass app for webhook support)
-    log('🤖 Starting Telegram Bot...');
-    await startTelegramBot(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
@@ -108,7 +96,29 @@ app.use((req, res, next) => {
     }, () => {
       log(`✅ Server running on port ${port}`);
       log(`📊 Dashboard: http://localhost:${port}`);
-      log(`🤖 Telegram Bot: Active and listening`);
+      
+      // Initialize services after server starts (non-blocking)
+      (async () => {
+        try {
+          const { initializeSheets } = await import("./sheets-service");
+          const { startTelegramBot } = await import("./telegram-bot");
+          
+          log('🔄 Initializing Google Sheets...');
+          await initializeSheets();
+          log('✅ Google Sheets initialized');
+          
+          log('🤖 Starting Telegram Bot...');
+          await startTelegramBot(app);
+          log('✅ Telegram Bot started');
+        } catch (error: any) {
+          if (error.message && error.message.includes('No access, refresh token')) {
+            log('⚠️  Google OAuth not authenticated yet');
+            log(`🔑 Please visit: http://localhost:${port}/auth/google to authenticate`);
+          } else {
+            log('❌ Error initializing services:', error);
+          }
+        }
+      })();
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

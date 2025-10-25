@@ -10,6 +10,7 @@ import Representatives from "@/pages/Representatives";
 import Analytics from "@/pages/Analytics";
 import Login from "@/pages/Login";
 import TelegramMiniApp from "@/pages/TelegramMiniApp";
+import GoogleAuth from "@/pages/GoogleAuth";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -49,6 +50,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/telegram-mini-app" component={TelegramMiniApp} />
+      <Route path="/google-auth" component={GoogleAuth} />
       <Route path="/">
         <ProtectedRoute component={() => (
           <DashboardLayout>
