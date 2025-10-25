@@ -63,11 +63,22 @@ async function preprocessImageForEgyptianID(imageBuffer: Buffer): Promise<Buffer
     
     variations.push(
       await sharp(imageBuffer)
-        .resize(3500, null, { fit: 'inside', withoutEnlargement: false })
+        .resize(4500, null, { fit: 'inside', withoutEnlargement: false })
         .grayscale()
         .normalize()
-        .linear(1.5, -(128 * 1.5) + 128)
-        .sharpen({ sigma: 1.8 })
+        .linear(1.8, -(128 * 1.8) + 128)
+        .sharpen({ sigma: 2.5 })
+        .toBuffer()
+    );
+    
+    variations.push(
+      await sharp(imageBuffer)
+        .resize(5000, null, { fit: 'inside', withoutEnlargement: false })
+        .grayscale()
+        .normalize()
+        .linear(2.2, -(128 * 2.2) + 128)
+        .sharpen({ sigma: 3 })
+        .threshold(110)
         .toBuffer()
     );
     
@@ -75,42 +86,31 @@ async function preprocessImageForEgyptianID(imageBuffer: Buffer): Promise<Buffer
       await sharp(imageBuffer)
         .resize(4000, null, { fit: 'inside', withoutEnlargement: false })
         .grayscale()
-        .normalize()
-        .linear(2.0, -(128 * 2.0) + 128)
-        .sharpen({ sigma: 2.5 })
-        .threshold(115)
-        .toBuffer()
-    );
-    
-    variations.push(
-      await sharp(imageBuffer)
-        .resize(3200, null, { fit: 'inside', withoutEnlargement: false })
-        .grayscale()
         .median(2)
         .normalize()
-        .linear(1.7, -(128 * 1.7) + 128)
-        .sharpen({ sigma: 2 })
+        .linear(2.0, -(128 * 2.0) + 128)
+        .sharpen({ sigma: 2.8 })
         .toBuffer()
     );
     
     variations.push(
       await sharp(imageBuffer)
-        .resize(3800, null, { fit: 'inside', withoutEnlargement: false })
+        .resize(4200, null, { fit: 'inside', withoutEnlargement: false })
         .grayscale()
         .normalize()
         .clahe({ width: 8, height: 8, maxSlope: 3 })
-        .sharpen({ sigma: 2.2 })
+        .sharpen({ sigma: 2.5 })
         .toBuffer()
     );
     
     variations.push(
       await sharp(imageBuffer)
-        .resize(3600, null, { fit: 'inside', withoutEnlargement: false })
+        .resize(4800, null, { fit: 'inside', withoutEnlargement: false })
         .grayscale()
         .normalize()
-        .linear(1.6, -(128 * 1.6) + 128)
-        .blur(0.5)
-        .sharpen({ sigma: 3 })
+        .linear(1.9, -(128 * 1.9) + 128)
+        .blur(0.3)
+        .sharpen({ sigma: 3.5 })
         .toBuffer()
     );
     
@@ -176,191 +176,187 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
   try {
     console.log('🔍 Starting enhanced OCR processing for Egyptian ID...');
     
-    let text = '';
+    let allTexts: string[] = [];
     let bestText = '';
     let maxConfidence = 0;
     
     const hfText = await extractWithHuggingFace(imageBuffer);
     if (hfText && hfText.length > 20) {
-      text = hfText;
+      allTexts.push(hfText);
       console.log('✅ Using Hugging Face OCR result');
-    } else {
-      console.log('🔄 Falling back to Tesseract OCR with multiple preprocessing variations...');
-      
-      const imageVariations = await preprocessImageForEgyptianID(imageBuffer);
-      
-      for (let i = 0; i < imageVariations.length; i++) {
-        try {
-          console.log(`🔄 Processing image variation ${i + 1}/${imageVariations.length}...`);
+    }
+    
+    console.log('🔄 Processing with Tesseract OCR (multiple variations)...');
+    
+    const imageVariations = await preprocessImageForEgyptianID(imageBuffer);
+    
+    for (let i = 0; i < imageVariations.length; i++) {
+      try {
+        console.log(`🔄 Processing image variation ${i + 1}/${imageVariations.length}...`);
+        
+        const worker = await createWorker('ara+eng', 1, {
+          logger: () => {}
+        });
+        
+        await worker.setParameters({
+          tessedit_pageseg_mode: '6',
+          preserve_interword_spaces: '1',
+          tessedit_char_whitelist: '0123456789٠١٢٣٤٥٦٧٨٩أبتثجحخدذرزسشصضطظعغفقكلمنهويىةآإؤئءًٌٍَُِّْٓ /.-',
+          tessedit_ocr_engine_mode: '1',
+          chop_enable: 'T',
+          use_new_state_cost: 'F',
+          segment_segcost_rating: 'F',
+          enable_new_segsearch: '0',
+          textord_min_linesize: '2.5'
+        });
+        
+        const { data: { text: tesseractText, confidence } } = await worker.recognize(imageVariations[i]);
+        
+        await worker.terminate();
+        
+        console.log(`📊 Variation ${i + 1} confidence: ${confidence}%`);
+        
+        if (tesseractText && tesseractText.trim().length > 15) {
+          allTexts.push(tesseractText);
           
-          const worker = await createWorker('ara+eng', 1, {
-            logger: () => {}
-          });
-          
-          await worker.setParameters({
-            tessedit_pageseg_mode: '6',
-            preserve_interword_spaces: '1',
-            tessedit_char_whitelist: '0123456789٠١٢٣٤٥٦٧٨٩أبتثجحخدذرزسشصضطظعغفقكلمنهويىةآإؤئءًٌٍَُِّْٓ ',
-            tessedit_ocr_engine_mode: '1',
-            chop_enable: 'T',
-            use_new_state_cost: 'F',
-            segment_segcost_rating: 'F',
-            enable_new_segsearch: '0',
-            textord_min_linesize: '2.5'
-          });
-          
-          const { data: { text: tesseractText, confidence } } = await worker.recognize(imageVariations[i]);
-          
-          await worker.terminate();
-          
-          console.log(`📊 Variation ${i + 1} confidence: ${confidence}%`);
-          
-          if (confidence > maxConfidence && tesseractText.length > 20) {
+          if (confidence > maxConfidence) {
             maxConfidence = confidence;
             bestText = tesseractText;
           }
-          
-          if (i === 0 || text.length < tesseractText.length) {
-            text += '\n' + tesseractText;
-          }
-        } catch (error) {
-          console.log(`⚠️ Variation ${i + 1} failed:`, error);
         }
-      }
-      
-      if (bestText && bestText.length > text.length / 2) {
-        text = bestText;
-        console.log(`✅ Using best variation with ${maxConfidence}% confidence`);
+      } catch (error) {
+        console.log(`⚠️ Variation ${i + 1} failed:`, error);
       }
     }
     
-    console.log('📄 OCR Raw Text:', text);
+    const combinedText = allTexts.join('\n\n');
+    console.log('📄 Combined OCR Text:', combinedText.substring(0, 600));
 
-    const normalizedText = convertArabicNumeralsToLatin(text);
-    console.log('🔄 Text with converted numerals:', normalizedText);
+    const normalizedText = convertArabicNumeralsToLatin(combinedText);
 
     let nationalId: string | null = null;
     
     const allDigits = normalizedText.replace(/[^\d]/g, '');
     console.log('🔢 All digits extracted:', allDigits);
     
-    if (allDigits.length >= 14) {
-      for (let i = 0; i <= allDigits.length - 14; i++) {
-        const candidate = allDigits.substring(i, i + 14);
-        
-        if (candidate.startsWith('1') || candidate.startsWith('2') || candidate.startsWith('3')) {
-          const century = parseInt(candidate.substring(0, 1));
-          const year = parseInt(candidate.substring(1, 3));
-          const month = parseInt(candidate.substring(3, 5));
-          const day = parseInt(candidate.substring(5, 7));
-          
-          if (century >= 1 && century <= 3 && 
-              month >= 1 && month <= 12 && 
-              day >= 1 && day <= 31 && 
-              year >= 0 && year <= 99) {
-            nationalId = candidate;
-            console.log('✅ Found valid national ID pattern:', nationalId);
-            break;
-          }
+    const allNumberSequences = normalizedText.match(/[\d\s\.\-\/]{14,30}/g) || [];
+    const candidates: string[] = [];
+    
+    for (const seq of allNumberSequences) {
+      const cleaned = seq.replace(/[^\d]/g, '');
+      if (cleaned.length >= 14) {
+        for (let i = 0; i <= cleaned.length - 14; i++) {
+          candidates.push(cleaned.substring(i, i + 14));
         }
       }
     }
     
-    if (!nationalId) {
-      let normalizedMatch = normalizedText.match(/\b\d{14}\b/);
-      nationalId = normalizedMatch ? normalizedMatch[0] : null;
+    if (allDigits.length >= 14) {
+      for (let i = 0; i <= allDigits.length - 14; i++) {
+        candidates.push(allDigits.substring(i, i + 14));
+      }
     }
     
-    if (!nationalId) {
-      const patterns = normalizedText.match(/[\d\s\.\-]{17,30}/g);
-      if (patterns) {
-        for (const pattern of patterns) {
-          const cleaned = pattern.replace(/[^\d]/g, '');
-          if (cleaned.length >= 14) {
-            nationalId = cleaned.substring(0, 14);
-            break;
-          }
+    console.log('🔍 National ID candidates:', candidates.slice(0, 10));
+    
+    for (const candidate of candidates) {
+      if (candidate.startsWith('1') || candidate.startsWith('2') || candidate.startsWith('3')) {
+        const century = parseInt(candidate.substring(0, 1));
+        const year = parseInt(candidate.substring(1, 3));
+        const month = parseInt(candidate.substring(3, 5));
+        const day = parseInt(candidate.substring(5, 7));
+        
+        if (century >= 1 && century <= 3 && 
+            month >= 1 && month <= 12 && 
+            day >= 1 && day <= 31 && 
+            year >= 0 && year <= 99) {
+          nationalId = candidate;
+          console.log('✅ Found valid national ID:', nationalId);
+          break;
         }
       }
     }
 
-    const lines = text.split('\n').filter(line => line.trim());
+    const lines = combinedText.split('\n').filter(line => line.trim());
     let fullName: string | null = null;
     let address: string | null = null;
 
-    const namePatterns = [
-      /([أ-يا-ي\s]{6,})/g,
-    ];
-    
     const commonWords = [
       'مصر', 'جمهورية', 'محافظة', 'بطاقة', 'العربية', 'العنوان', 'الرقم', 
-      'القومي', 'الاسم', 'العنوان', 'تاريخ', 'الميلاد', 'الجنس', 'الديانة',
+      'القومي', 'الاسم', 'تاريخ', 'الميلاد', 'الجنس', 'الديانة',
       'المهنة', 'الحالة', 'الاجتماعية', 'وزارة', 'الداخلية', 'مصلحة', 
-      'الاحوال', 'المدنية', 'شخصية', 'قومية'
+      'الاحوال', 'المدنية', 'شخصية', 'قومية', 'بطاقه'
     ];
     
     const governorateKeywords = [
       'القاهرة', 'الجيزة', 'الإسكندرية', 'الدقهلية', 'البحيرة', 'الفيوم', 
       'الغربية', 'الإسماعيلية', 'المنوفية', 'المنيا', 'القليوبية', 'الوادي الجديد',
       'الشرقية', 'السويس', 'أسوان', 'أسيوط', 'بني سويف', 'بورسعيد',
-      'دمياط', 'الأقصر', 'قنا', 'كفر الشيخ', 'مطروح', 'الوادي الجديد',
-      'شمال سيناء', 'جنوب سيناء', 'البحر الأحمر', 'سوهاج'
+      'دمياط', 'الأقصر', 'قنا', 'كفر الشيخ', 'مطروح',
+      'شمال سيناء', 'جنوب سيناء', 'البحر الأحمر', 'سوهاج', 'مطروح'
     ];
 
-    const arabicLines = lines.filter(line => /[\u0600-\u06FF]/.test(line));
+    const arabicLines = lines
+      .filter(line => /[\u0600-\u06FF]/.test(line))
+      .map(line => line.replace(/[^\u0600-\u06FF\s]/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter(line => line.length >= 4);
+    
+    console.log('📝 Arabic lines found:', arabicLines.length);
+    arabicLines.forEach((line, i) => console.log(`  Line ${i}: "${line}"`));
+    
+    const nameCandidates: { text: string; score: number }[] = [];
     
     for (const line of arabicLines) {
-      const cleanedLine = line.replace(/[^\u0600-\u06FF\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const words = line.split(/\s+/);
       
-      if (!fullName && cleanedLine.length >= 6) {
-        const words = cleanedLine.split(/\s+/);
+      if (words.length < 2 || words.length > 6) continue;
+      
+      const hasCommonWord = commonWords.some(word => line.includes(word));
+      const hasGovernorate = governorateKeywords.some(gov => line.includes(gov));
+      
+      if (hasCommonWord || hasGovernorate) continue;
+      
+      const validWords = words.filter(word => word.length >= 2);
+      
+      if (validWords.length >= 2) {
+        let score = validWords.length;
         
-        const hasCommonWord = commonWords.some(word => cleanedLine.includes(word));
-        const hasGovernorate = governorateKeywords.some(gov => cleanedLine.includes(gov));
+        if (validWords.length === 3) score += 2;
+        if (validWords.length === 4) score += 3;
         
-        if (!hasCommonWord && !hasGovernorate && words.length >= 2 && words.length <= 7) {
-          const validWords = words.filter(word => word.length >= 2);
-          
-          if (validWords.length >= 2) {
-            fullName = validWords.join(' ');
-            console.log('✅ Found name candidate:', fullName);
-          }
-        }
+        if (line.length > 10 && line.length < 50) score += 1;
+        
+        nameCandidates.push({
+          text: validWords.join(' '),
+          score
+        });
       }
-      
-      if (!address) {
-        for (const gov of governorateKeywords) {
-          if (line.includes(gov)) {
-            const addressLine = line.replace(/محافظة|العنوان|عنوان|:/g, ' ').replace(/\s+/g, ' ').trim();
-            if (addressLine.length >= 4 && addressLine.length <= 100) {
-              address = addressLine;
-              console.log('✅ Found address:', address);
-              break;
-            }
-          }
-        }
-      }
-      
-      if (fullName && address) break;
     }
     
-    if (!fullName && arabicLines.length > 0) {
-      const sortedLines = arabicLines
-        .map(line => line.replace(/[^\u0600-\u06FF\s]/g, ' ').replace(/\s+/g, ' ').trim())
-        .filter(line => {
-          const words = line.split(/\s+/);
-          return words.length >= 2 && words.length <= 7 && line.length >= 6;
-        })
-        .sort((a, b) => {
-          const hasCommonA = commonWords.some(word => a.includes(word)) ? 1 : 0;
-          const hasCommonB = commonWords.some(word => b.includes(word)) ? 1 : 0;
-          return hasCommonA - hasCommonB;
-        });
-      
-      if (sortedLines.length > 0) {
-        fullName = sortedLines[0];
-        console.log('✅ Using best name guess:', fullName);
+    nameCandidates.sort((a, b) => b.score - a.score);
+    
+    console.log('👤 Name candidates:', nameCandidates.slice(0, 5));
+    
+    if (nameCandidates.length > 0) {
+      fullName = nameCandidates[0].text;
+      console.log('✅ Selected name:', fullName);
+    }
+    
+    for (const line of lines) {
+      for (const gov of governorateKeywords) {
+        if (line.includes(gov)) {
+          const addressLine = line
+            .replace(/محافظة|العنوان|عنوان|:/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (addressLine.length >= 4 && addressLine.length <= 100) {
+            address = addressLine;
+            console.log('✅ Found address:', address);
+            break;
+          }
+        }
       }
+      if (address) break;
     }
 
     let decodedInfo: DecodedEgyptianID | null = null;
@@ -377,13 +373,13 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
       }
     }
 
-    console.log('✅ OCR Results:', { nationalId, fullName, address, decodedInfo });
+    console.log('✅ Final OCR Results:', { nationalId, fullName, address });
 
     return {
       nationalId,
       fullName,
       address,
-      text: text.substring(0, 500),
+      text: combinedText.substring(0, 500),
       decodedInfo
     };
   } catch (error) {
