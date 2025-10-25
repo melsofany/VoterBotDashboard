@@ -82,15 +82,26 @@
 ## المتغيرات البيئية المطلوبة
 
 ```
-TELEGRAM_BOT_TOKEN=...        # مطلوب
-GOOGLE_SHEET_ID=...          # مطلوب
-GOOGLE_DRIVE_FOLDER_ID=...   # مطلوب
-ADMIN_USERNAME=...           # مطلوب
-ADMIN_PASSWORD=...           # مطلوب
-HUGGINGFACE_TOKEN=...        # اختياري - لكن موصى به لتحسين OCR
+TELEGRAM_BOT_TOKEN=...                    # مطلوب
+GOOGLE_SHEET_ID=...                      # مطلوب
+GOOGLE_DRIVE_FOLDER_ID=...               # مطلوب
+ADMIN_USERNAME=...                       # مطلوب
+ADMIN_PASSWORD=...                       # مطلوب
+HUGGINGFACE_TOKEN=...                    # اختياري - لكن موصى به لتحسين OCR
+
+# للنشر على Render (اختر طريقة واحدة):
+# الطريقة 1 (الأسهل):
+GOOGLE_SERVICE_ACCOUNT_JSON=...          # ملف JSON كامل من Google Cloud
+
+# الطريقة 2 (البديلة):
+GOOGLE_SERVICE_ACCOUNT_EMAIL=...         # البريد الإلكتروني من ملف JSON
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=...   # المفتاح الخاص من ملف JSON
 ```
 
-**جميع هذه المتغيرات موجودة الآن في Replit Secrets**
+**ملاحظة:** 
+- على Replit: يمكن استخدام Replit Integrations أو Service Account
+- على Render: يجب استخدام Service Account - انظر `GOOGLE_SERVICE_ACCOUNT_GUIDE.md`
+- الطريقة الأسهل: استخدم `GOOGLE_SERVICE_ACCOUNT_JSON` (انسخ ملف JSON كاملاً)
 
 ### كيفية الحصول على HUGGINGFACE_TOKEN (اختياري)
 لتحسين دقة استخراج البيانات من البطاقات:

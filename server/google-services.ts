@@ -1,94 +1,72 @@
 import { google } from 'googleapis';
 
-let driveConnectionSettings: any;
-let sheetsConnectionSettings: any;
+let auth: any = null;
 
-async function getDriveAccessToken() {
-  if (driveConnectionSettings && driveConnectionSettings.settings.expires_at && new Date(driveConnectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return driveConnectionSettings.settings.access_token;
-  }
-  
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+function getGoogleAuth() {
+  if (auth) {
+    return auth;
   }
 
-  driveConnectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-drive',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const serviceAccountPrivateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+
+  if (serviceAccountJson) {
+    try {
+      const credentials = JSON.parse(serviceAccountJson);
+      
+      auth = new google.auth.GoogleAuth({
+        credentials: credentials,
+        scopes: [
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/drive.file',
+          'https://www.googleapis.com/auth/drive'
+        ],
+      });
+
+      return auth;
+    } catch (error) {
+      throw new Error(
+        'Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON.\n' +
+        'Please ensure it contains valid JSON from the Service Account key file.'
+      );
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
+  } else if (serviceAccountEmail && serviceAccountPrivateKey) {
+    const privateKey = serviceAccountPrivateKey.replace(/\\n/g, '\n');
 
-  const accessToken = driveConnectionSettings?.settings?.access_token || driveConnectionSettings.settings?.oauth?.credentials?.access_token;
+    auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: serviceAccountEmail,
+        private_key: privateKey,
+      },
+      scopes: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive'
+      ],
+    });
 
-  if (!driveConnectionSettings || !accessToken) {
-    throw new Error('Google Drive not connected');
+    return auth;
+  } else {
+    throw new Error(
+      'Missing Google Service Account credentials.\n\n' +
+      'Please add ONE of the following options:\n\n' +
+      'Option 1 (Recommended - Easier):\n' +
+      '  GOOGLE_SERVICE_ACCOUNT_JSON = {entire JSON file contents}\n\n' +
+      'Option 2:\n' +
+      '  GOOGLE_SERVICE_ACCOUNT_EMAIL = xxx@xxx.iam.gserviceaccount.com\n' +
+      '  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = -----BEGIN PRIVATE KEY-----...\n\n' +
+      'See GOOGLE_SERVICE_ACCOUNT_GUIDE.md for detailed instructions.'
+    );
   }
-  return accessToken;
-}
-
-async function getSheetsAccessToken() {
-  if (sheetsConnectionSettings && sheetsConnectionSettings.settings.expires_at && new Date(sheetsConnectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return sheetsConnectionSettings.settings.access_token;
-  }
-  
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
-  }
-
-  sheetsConnectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-sheet',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
-    }
-  ).then(res => res.json()).then(data => data.items?.[0]);
-
-  const accessToken = sheetsConnectionSettings?.settings?.access_token || sheetsConnectionSettings.settings?.oauth?.credentials?.access_token;
-
-  if (!sheetsConnectionSettings || !accessToken) {
-    throw new Error('Google Sheet not connected');
-  }
-  return accessToken;
 }
 
 export async function getUncachableGoogleDriveClient() {
-  const accessToken = await getDriveAccessToken();
-
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({
-    access_token: accessToken
-  });
-
-  return google.drive({ version: 'v3', auth: oauth2Client });
+  const auth = getGoogleAuth();
+  return google.drive({ version: 'v3', auth });
 }
 
 export async function getUncachableGoogleSheetClient() {
-  const accessToken = await getSheetsAccessToken();
-
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({
-    access_token: accessToken
-  });
-
-  return google.sheets({ version: 'v4', auth: oauth2Client });
+  const auth = getGoogleAuth();
+  return google.sheets({ version: 'v4', auth });
 }

@@ -170,7 +170,32 @@ Value: YOUR_SECURE_PASSWORD
 ```
 **مهم:** استخدم كلمة مرور قوية!
 
-#### 6. HUGGINGFACE_TOKEN (اختياري - لكن موصى به)
+#### 6. GOOGLE_SERVICE_ACCOUNT_JSON (مطلوب - الطريقة الأسهل) ⭐
+```
+Key: GOOGLE_SERVICE_ACCOUNT_JSON
+Value: {"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}
+```
+- **الطريقة الأسهل:** انسخ محتوى ملف JSON بالكامل والصقه هنا
+- احصل على الملف من Google Cloud Console
+- **مهم:** راجع ملف `GOOGLE_SERVICE_ACCOUNT_GUIDE.md` لشرح مفصل!
+
+**أو استخدم الطريقة البديلة:**
+
+#### 6b. GOOGLE_SERVICE_ACCOUNT_EMAIL (بديل)
+```
+Key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+Value: your-service-account@project.iam.gserviceaccount.com
+```
+
+#### 6c. GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY (بديل)
+```
+Key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+Value: -----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----\n
+```
+
+**ملاحظة:** استخدم **إما** متغير واحد `GOOGLE_SERVICE_ACCOUNT_JSON` (أسهل)، **أو** متغيرين `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+
+#### 7. HUGGINGFACE_TOKEN (اختياري - لكن موصى به)
 ```
 Key: HUGGINGFACE_TOKEN
 Value: YOUR_HF_TOKEN
@@ -179,14 +204,14 @@ Value: YOUR_HF_TOKEN
 - احصل عليه من [Hugging Face Settings](https://huggingface.co/settings/tokens)
 - إذا لم تضعه، سيستخدم النظام Tesseract فقط
 
-#### 7. PORT (يُضاف تلقائياً)
+#### 8. PORT (يُضاف تلقائياً)
 ```
 Key: PORT
 Value: 10000
 ```
 **ملاحظة:** Render يضيف هذا المتغير تلقائياً - لا تحتاج إضافته
 
-#### 8. NODE_ENV (يُضاف تلقائياً)
+#### 9. NODE_ENV (يُضاف تلقائياً)
 ```
 Key: NODE_ENV
 Value: production
@@ -357,13 +382,16 @@ Branch: main
 Build Command: npm install && npm run build
 Start Command: npm run start
 
-Environment Variables:
+Environment Variables (الطريقة السهلة):
   - TELEGRAM_BOT_TOKEN=your_token
   - GOOGLE_SHEET_ID=your_sheet_id
   - GOOGLE_DRIVE_FOLDER_ID=your_folder_id
   - ADMIN_USERNAME=admin
   - ADMIN_PASSWORD=your_password
+  - GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
   - HUGGINGFACE_TOKEN=your_hf_token (optional)
+
+أو استخدم الطريقة البديلة:
   - GOOGLE_SERVICE_ACCOUNT_EMAIL=xxx@xxx.iam.gserviceaccount.com
   - GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----...
 
