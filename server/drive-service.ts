@@ -13,7 +13,8 @@ export async function uploadImageToDrive(
 
     const fileMetadata = {
       name: `${nationalId}.jpg`,
-      parents: [FOLDER_ID]
+      parents: [FOLDER_ID],
+      writersCanShare: false
     };
 
     const media = {
@@ -24,20 +25,35 @@ export async function uploadImageToDrive(
     const response = await drive.files.create({
       requestBody: fileMetadata,
       media: media,
-      fields: 'id, webViewLink'
+      fields: 'id, webViewLink',
+      supportsAllDrives: true
     });
 
-    // DO NOT make files public - keep them private for security
-    // Only authorized users with Google account access can view
-    
-    // Return a secure view link that requires authentication
     const fileId = response.data.id!;
+    
+    try {
+      await drive.permissions.create({
+        fileId: fileId,
+        requestBody: {
+          role: 'reader',
+          type: 'anyone'
+        },
+        supportsAllDrives: true
+      });
+      console.log('✅ File permissions set for:', nationalId);
+    } catch (permError) {
+      console.log('⚠️ Could not set public permissions (file will be restricted):', nationalId);
+    }
+    
     const secureViewLink = `https://drive.google.com/file/d/${fileId}/view`;
     
-    console.log('✅ Image uploaded to Google Drive (private):', nationalId);
+    console.log('✅ Image uploaded to Google Drive:', nationalId);
     return secureViewLink;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error uploading to Drive:', error);
+    if (error.message && error.message.includes('storage quota')) {
+      throw new Error('Service Account storage issue. Please use a Shared Drive or check folder permissions. See GOOGLE_SERVICE_ACCOUNT_GUIDE.md for details.');
+    }
     throw error;
   }
 }
