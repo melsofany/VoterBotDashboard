@@ -174,62 +174,37 @@ async function extractWithHuggingFace(imageBuffer: Buffer): Promise<string | nul
 
 export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRResult> {
   try {
-    console.log('🔍 Starting enhanced OCR processing for Egyptian ID...');
+    const startTime = Date.now();
+    console.log('⚡ Starting FAST OCR processing for Egyptian ID...');
     
-    let allTexts: string[] = [];
-    let bestText = '';
-    let maxConfidence = 0;
+    const processedImage = await sharp(imageBuffer)
+      .resize(2000, null, { fit: 'inside', withoutEnlargement: false })
+      .grayscale()
+      .normalize()
+      .linear(1.8, -(128 * 1.8) + 128)
+      .sharpen({ sigma: 2 })
+      .toBuffer();
     
-    const hfText = await extractWithHuggingFace(imageBuffer);
-    if (hfText && hfText.length > 20) {
-      allTexts.push(hfText);
-      console.log('✅ Using Hugging Face OCR result');
-    }
+    console.log(`✅ Image preprocessed in ${Date.now() - startTime}ms`);
     
-    console.log('🔄 Processing with Tesseract OCR (multiple variations)...');
+    const ocrStart = Date.now();
+    const worker = await createWorker('ara+eng', 1, {
+      logger: () => {}
+    });
     
-    const imageVariations = await preprocessImageForEgyptianID(imageBuffer);
+    await worker.setParameters({
+      tessedit_pageseg_mode: '6',
+      preserve_interword_spaces: '1',
+      tessedit_char_whitelist: '0123456789٠١٢٣٤٥٦٧٨٩أبتثجحخدذرزسشصضطظعغفقكلمنهويىةآإؤئءًٌٍَُِّْٓ /.-',
+      tessedit_ocr_engine_mode: '1'
+    });
     
-    for (let i = 0; i < imageVariations.length; i++) {
-      try {
-        console.log(`🔄 Processing image variation ${i + 1}/${imageVariations.length}...`);
-        
-        const worker = await createWorker('ara+eng', 1, {
-          logger: () => {}
-        });
-        
-        await worker.setParameters({
-          tessedit_pageseg_mode: '6',
-          preserve_interword_spaces: '1',
-          tessedit_char_whitelist: '0123456789٠١٢٣٤٥٦٧٨٩أبتثجحخدذرزسشصضطظعغفقكلمنهويىةآإؤئءًٌٍَُِّْٓ /.-',
-          tessedit_ocr_engine_mode: '1',
-          chop_enable: 'T',
-          use_new_state_cost: 'F',
-          segment_segcost_rating: 'F',
-          enable_new_segsearch: '0',
-          textord_min_linesize: '2.5'
-        });
-        
-        const { data: { text: tesseractText, confidence } } = await worker.recognize(imageVariations[i]);
-        
-        await worker.terminate();
-        
-        console.log(`📊 Variation ${i + 1} confidence: ${confidence}%`);
-        
-        if (tesseractText && tesseractText.trim().length > 15) {
-          allTexts.push(tesseractText);
-          
-          if (confidence > maxConfidence) {
-            maxConfidence = confidence;
-            bestText = tesseractText;
-          }
-        }
-      } catch (error) {
-        console.log(`⚠️ Variation ${i + 1} failed:`, error);
-      }
-    }
+    const { data: { text: tesseractText } } = await worker.recognize(processedImage);
+    await worker.terminate();
     
-    const combinedText = allTexts.join('\n\n');
+    console.log(`✅ OCR completed in ${Date.now() - ocrStart}ms`);
+    
+    const combinedText = tesseractText;
     console.log('📄 Combined OCR Text:', combinedText.substring(0, 600));
 
     const normalizedText = convertArabicNumeralsToLatin(combinedText);
@@ -373,6 +348,8 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
       }
     }
 
+    const totalTime = Date.now() - startTime;
+    console.log(`⚡ TOTAL OCR TIME: ${totalTime}ms (${(totalTime/1000).toFixed(2)}s)`);
     console.log('✅ Final OCR Results:', { nationalId, fullName, address });
 
     return {
