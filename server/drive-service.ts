@@ -6,17 +6,17 @@ let FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
 let folderCreatedAutomatically = false;
 
 export async function ensureDriveFolder(): Promise<string> {
-  if (FOLDER_ID && !folderCreatedAutomatically) {
+  if (FOLDER_ID) {
     return FOLDER_ID;
   }
 
   try {
     const drive = await getUncachableGoogleDriveClient();
     
-    console.log('📁 Creating a new Google Drive folder for Service Account...');
+    console.log('📁 لم يتم تعريف GOOGLE_DRIVE_FOLDER_ID - سيتم إنشاء مجلد جديد تلقائياً...');
     
     const folderMetadata = {
-      name: 'Voter ID Cards - Service Account',
+      name: `Voter ID Cards - ${new Date().toISOString().split('T')[0]}`,
       mimeType: 'application/vnd.google-apps.folder',
     };
 
@@ -26,20 +26,19 @@ export async function ensureDriveFolder(): Promise<string> {
     });
 
     FOLDER_ID = folder.data.id!;
-    folderCreatedAutomatically = true;
 
-    console.log('✅ Google Drive folder created successfully!');
-    console.log('📁 Folder ID:', FOLDER_ID);
-    console.log('🔗 Folder Link:', folder.data.webViewLink);
+    console.log('✅ تم إنشاء مجلد Google Drive بنجاح!');
+    console.log('📁 معرف المجلد:', FOLDER_ID);
+    console.log('🔗 رابط المجلد:', folder.data.webViewLink);
     console.log('');
-    console.log('⚠️ IMPORTANT: Add this to your environment variables:');
+    console.log('💡 نصيحة: أضف هذا في Environment Variables لتجنب إنشاء مجلد جديد في كل مرة:');
     console.log(`   GOOGLE_DRIVE_FOLDER_ID=${FOLDER_ID}`);
     console.log('');
 
     return FOLDER_ID;
   } catch (error) {
-    console.error('❌ Error creating Drive folder:', error);
-    throw new Error('Failed to create Google Drive folder. Please check Service Account permissions.');
+    console.error('❌ خطأ في إنشاء مجلد Drive:', error);
+    throw new Error('فشل إنشاء مجلد Google Drive. تحقق من صلاحيات Service Account.');
   }
 }
 
