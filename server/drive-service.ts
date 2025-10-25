@@ -2,43 +2,14 @@ import { getUncachableGoogleDriveClient } from './google-services';
 import { Readable } from 'stream';
 import type { Response } from 'express';
 
-let FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
-let folderCreatedAutomatically = false;
+const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID!;
 
-export async function ensureDriveFolder(): Promise<string> {
-  if (FOLDER_ID) {
-    return FOLDER_ID;
-  }
-
+async function getServiceAccountEmail(): Promise<string> {
   try {
-    const drive = await getUncachableGoogleDriveClient();
-    
-    console.log('📁 لم يتم تعريف GOOGLE_DRIVE_FOLDER_ID - سيتم إنشاء مجلد جديد تلقائياً...');
-    
-    const folderMetadata = {
-      name: `Voter ID Cards - ${new Date().toISOString().split('T')[0]}`,
-      mimeType: 'application/vnd.google-apps.folder',
-    };
-
-    const folder = await drive.files.create({
-      requestBody: folderMetadata,
-      fields: 'id, webViewLink',
-    });
-
-    FOLDER_ID = folder.data.id!;
-
-    console.log('✅ تم إنشاء مجلد Google Drive بنجاح!');
-    console.log('📁 معرف المجلد:', FOLDER_ID);
-    console.log('🔗 رابط المجلد:', folder.data.webViewLink);
-    console.log('');
-    console.log('💡 نصيحة: أضف هذا في Environment Variables لتجنب إنشاء مجلد جديد في كل مرة:');
-    console.log(`   GOOGLE_DRIVE_FOLDER_ID=${FOLDER_ID}`);
-    console.log('');
-
-    return FOLDER_ID;
-  } catch (error) {
-    console.error('❌ خطأ في إنشاء مجلد Drive:', error);
-    throw new Error('فشل إنشاء مجلد Google Drive. تحقق من صلاحيات Service Account.');
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
+    return credentials.client_email || 'غير معروف';
+  } catch {
+    return 'غير معروف';
   }
 }
 
@@ -46,13 +17,16 @@ export async function uploadImageToDrive(
   imageBuffer: Buffer,
   nationalId: string
 ): Promise<string> {
+  if (!FOLDER_ID) {
+    throw new Error('❌ GOOGLE_DRIVE_FOLDER_ID غير معرّف في متغيرات البيئة.');
+  }
+
   try {
-    const folderId = await ensureDriveFolder();
     const drive = await getUncachableGoogleDriveClient();
 
     const fileMetadata = {
       name: `${nationalId}.jpg`,
-      parents: [folderId],
+      parents: [FOLDER_ID],
       writersCanShare: false
     };
 
@@ -90,9 +64,21 @@ export async function uploadImageToDrive(
     return secureViewLink;
   } catch (error: any) {
     console.error('❌ Error uploading to Drive:', error);
+    
     if (error.message && error.message.includes('storage quota')) {
-      throw new Error('فشل رفع الصورة. المجلد الحالي غير متوافق مع Service Account. سيتم إنشاء مجلد جديد تلقائياً في المرة القادمة.');
+      const serviceEmail = await getServiceAccountEmail();
+      throw new Error(
+        `❌ المجلد غير مشارك مع Service Account!\n\n` +
+        `📋 الحل:\n` +
+        `1. افتح Google Drive: https://drive.google.com/drive/folders/${FOLDER_ID}\n` +
+        `2. اضغط كليك يمين على المجلد → Share\n` +
+        `3. أضف هذا البريد: ${serviceEmail}\n` +
+        `4. اختر صلاحية: Editor\n` +
+        `5. اضغط Share\n\n` +
+        `ثم حاول مرة أخرى.`
+      );
     }
+    
     throw error;
   }
 }
