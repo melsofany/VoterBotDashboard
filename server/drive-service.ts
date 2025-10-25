@@ -2,18 +2,58 @@ import { getUncachableGoogleDriveClient } from './google-services';
 import { Readable } from 'stream';
 import type { Response } from 'express';
 
-const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '1V_ZX_LXZyWx6w9K72gdeMgFRPjNKw8SG';
+let FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
+let folderCreatedAutomatically = false;
+
+export async function ensureDriveFolder(): Promise<string> {
+  if (FOLDER_ID && !folderCreatedAutomatically) {
+    return FOLDER_ID;
+  }
+
+  try {
+    const drive = await getUncachableGoogleDriveClient();
+    
+    console.log('📁 Creating a new Google Drive folder for Service Account...');
+    
+    const folderMetadata = {
+      name: 'Voter ID Cards - Service Account',
+      mimeType: 'application/vnd.google-apps.folder',
+    };
+
+    const folder = await drive.files.create({
+      requestBody: folderMetadata,
+      fields: 'id, webViewLink',
+    });
+
+    FOLDER_ID = folder.data.id!;
+    folderCreatedAutomatically = true;
+
+    console.log('✅ Google Drive folder created successfully!');
+    console.log('📁 Folder ID:', FOLDER_ID);
+    console.log('🔗 Folder Link:', folder.data.webViewLink);
+    console.log('');
+    console.log('⚠️ IMPORTANT: Add this to your environment variables:');
+    console.log(`   GOOGLE_DRIVE_FOLDER_ID=${FOLDER_ID}`);
+    console.log('');
+
+    return FOLDER_ID;
+  } catch (error) {
+    console.error('❌ Error creating Drive folder:', error);
+    throw new Error('Failed to create Google Drive folder. Please check Service Account permissions.');
+  }
+}
 
 export async function uploadImageToDrive(
   imageBuffer: Buffer,
   nationalId: string
 ): Promise<string> {
   try {
+    const folderId = await ensureDriveFolder();
     const drive = await getUncachableGoogleDriveClient();
 
     const fileMetadata = {
       name: `${nationalId}.jpg`,
-      parents: [FOLDER_ID],
+      parents: [folderId],
       writersCanShare: false
     };
 
@@ -52,7 +92,7 @@ export async function uploadImageToDrive(
   } catch (error: any) {
     console.error('❌ Error uploading to Drive:', error);
     if (error.message && error.message.includes('storage quota')) {
-      throw new Error('Service Account storage issue. Please use a Shared Drive or check folder permissions. See GOOGLE_SERVICE_ACCOUNT_GUIDE.md for details.');
+      throw new Error('فشل رفع الصورة. المجلد الحالي غير متوافق مع Service Account. سيتم إنشاء مجلد جديد تلقائياً في المرة القادمة.');
     }
     throw error;
   }
