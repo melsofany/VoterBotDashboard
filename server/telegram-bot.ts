@@ -593,10 +593,8 @@ export async function startTelegramBot(app?: Express) {
         errorMessage = `❌ ${error.message}\n\n` +
           'يرجى التحقق من البيانات المدخلة.\n\n' +
           'أرسل /start للبدء من جديد';
-      } else if (error.message && error.message.includes('Google')) {
-        errorMessage = '❌ حدث خطأ في الاتصال مع خدمة التخزين.\n\n' +
-          'يرجى المحاولة مرة أخرى بعد قليل.\n\n' +
-          'أرسل /start للبدء من جديد';
+      } else if (error.message && error.message.includes('المجلد غير مشارك')) {
+        errorMessage = error.message + '\n\nأرسل /start للبدء من جديد';
       } else {
         errorMessage = '❌ حدث خطأ أثناء حفظ البيانات.\n\n' +
           `التفاصيل: ${error.message || 'خطأ غير معروف'}\n\n` +
