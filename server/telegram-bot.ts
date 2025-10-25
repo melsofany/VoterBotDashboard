@@ -1,4 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
+import type { Express } from 'express';
+import express from 'express';
 import { nanoid } from 'nanoid';
 import { extractDataFromIDCard } from './ocr-service';
 import { uploadImageToDrive } from './drive-service';
@@ -23,10 +25,36 @@ interface UserSession {
 
 const sessions = new Map<number, UserSession>();
 
-export async function startTelegramBot() {
-  const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+export async function startTelegramBot(app?: Express) {
+  const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
+  const USE_WEBHOOK = process.env.NODE_ENV === 'production';
 
-  console.log('🤖 Telegram Bot started successfully!');
+  const bot = USE_WEBHOOK
+    ? new TelegramBot(BOT_TOKEN)
+    : new TelegramBot(BOT_TOKEN, { polling: true });
+
+  console.log(`🤖 Telegram Bot started in ${USE_WEBHOOK ? 'WEBHOOK' : 'POLLING'} mode`);
+
+  // Setup webhook endpoint if in production
+  if (USE_WEBHOOK && app && WEBHOOK_URL) {
+    const webhookPath = `/bot${BOT_TOKEN}`;
+    
+    app.post(webhookPath, express.json(), (req, res) => {
+      bot.processUpdate(req.body);
+      res.sendStatus(200);
+    });
+
+    try {
+      await bot.setWebHook(`${WEBHOOK_URL}${webhookPath}`);
+      console.log(`✅ Webhook set to: ${WEBHOOK_URL}${webhookPath}`);
+    } catch (error) {
+      console.error('❌ Failed to set webhook:', error);
+      throw error;
+    }
+  } else if (USE_WEBHOOK && !WEBHOOK_URL) {
+    console.error('⚠️ Production mode requires WEBHOOK_URL environment variable!');
+    throw new Error('WEBHOOK_URL is required in production mode');
+  }
 
   // Command: /start
   bot.onText(/\/start/, async (msg) => {

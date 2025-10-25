@@ -72,12 +72,12 @@ app.use((req, res, next) => {
     log('🔄 Initializing Google Sheets...');
     await initializeSheets();
     
-    // Start Telegram Bot
-    log('🤖 Starting Telegram Bot...');
-    await startTelegramBot();
-    
-    // Register API routes
+    // Register API routes first
     const server = await registerRoutes(app);
+    
+    // Start Telegram Bot (pass app for webhook support)
+    log('🤖 Starting Telegram Bot...');
+    await startTelegramBot(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
