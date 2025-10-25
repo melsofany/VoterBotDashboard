@@ -26,7 +26,10 @@ interface UserSession {
 const sessions = new Map<number, UserSession>();
 
 export async function startTelegramBot(app?: Express) {
-  const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
+  let WEBHOOK_URL = process.env.WEBHOOK_URL || '';
+  // Remove trailing slash from WEBHOOK_URL if present
+  WEBHOOK_URL = WEBHOOK_URL.replace(/\/$/, '');
+  
   // Use webhook only if WEBHOOK_URL is explicitly set
   const USE_WEBHOOK = !!WEBHOOK_URL;
 
@@ -46,8 +49,9 @@ export async function startTelegramBot(app?: Express) {
     });
 
     try {
-      await bot.setWebHook(`${WEBHOOK_URL}${webhookPath}`);
-      console.log(`✅ Webhook set to: ${WEBHOOK_URL}${webhookPath}`);
+      const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
+      await bot.setWebHook(fullWebhookUrl);
+      console.log(`✅ Webhook set to: ${fullWebhookUrl}`);
     } catch (error) {
       console.error('❌ Failed to set webhook:', error);
       throw error;

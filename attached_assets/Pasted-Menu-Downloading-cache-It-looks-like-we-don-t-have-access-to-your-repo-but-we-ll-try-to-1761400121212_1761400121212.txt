@@ -1,0 +1,64 @@
+Menu
+
+==> Downloading cache...
+==> It looks like we don't have access to your repo, but we'll try to clone it anyway.
+==> Cloning from https://github.com/melsofany/VoterBotDashboard
+==> Checking out commit 0749250a1a29984b57933abb0d42f03eb1b375b0 in branch main
+==> Transferred 296MB in 8s. Extraction took 6s.
+==> Using Node.js version 22.16.0 (default)
+==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+==> Running build command 'npm install && npm run build'...
+up to date, audited 696 packages in 2s
+137 packages are looking for funding
+  run `npm fund` for details
+14 vulnerabilities (3 low, 9 moderate, 2 critical)
+To address issues that do not require attention, run:
+  npm audit fix
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+Run `npm audit` for details.
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+vite v5.4.20 building for production...
+transforming...
+Browserslist: browsers data (caniuse-lite) is 12 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 2512 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                   0.96 kB │ gzip:   0.57 kB
+../dist/public/assets/index-B_Uw9hco.css   78.10 kB │ gzip:  13.04 kB
+../dist/public/assets/index-DK4w2GX1.js   767.61 kB │ gzip: 222.81 kB
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.80s
+  dist/index.js  75.5kb
+⚡ Done in 5ms
+==> Uploading build...
+==> Uploaded in 7.8s. Compression took 4.5s
+==> Build successful 🎉
+==> Deploying...
+==> Running 'npm run start'
+> rest-express@1.0.0 start
+> NODE_ENV=production node dist/index.js
+1:38:09 PM [express] 🔄 Initializing Google Sheets...
+✅ Google Sheets initialized successfully
+📊 Sheet ID: 1-rCGPx6vyEMm3zmR7ks3xZh63XcJk4ks78e5e9jfuyo
+📝 Sheets created/verified: Voters, Representatives
+1:38:10 PM [express] 🤖 Starting Telegram Bot...
+🤖 Telegram Bot started in WEBHOOK mode
+✅ Webhook set to: https://voterbotdashboard.onrender.com//bot8489886903:AAF_HquDUCAT17402fOZS53GmRwNJUkWT6M
+1:38:10 PM [express] ✅ Server running on port 10000
+1:38:10 PM [express] 📊 Dashboard: http://localhost:10000
+1:38:10 PM [express] 🤖 Telegram Bot: Active and listening
+==> Your service is live 🎉
+==> 
+==> ///////////////////////////////////////////////////////////
+==> 
+==> Available at your primary URL https://voterbotdashboard.onrender.com
+==> 
+==> 
