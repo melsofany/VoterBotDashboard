@@ -104,6 +104,10 @@ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=...   # المفتاح الخاص من ملف
 - على Render: يجب استخدام Service Account - انظر `GOOGLE_SERVICE_ACCOUNT_GUIDE.md`
 - الطريقة الأسهل: استخدم `GOOGLE_SERVICE_ACCOUNT_JSON` (انسخ ملف JSON كاملاً)
 
+**حالة التكامل الحالية:**
+- المستخدم اختار الإعداد اليدوي بدلاً من استخدام Replit Integration
+- يتطلب إعداد Google Service Account يدوياً (انظر `GOOGLE_SERVICE_ACCOUNT_GUIDE.md`)
+
 ### كيفية الحصول على HUGGINGFACE_TOKEN (اختياري)
 لتحسين دقة استخراج البيانات من البطاقات:
 1. سجل حساب مجاني في [Hugging Face](https://huggingface.co/join)
