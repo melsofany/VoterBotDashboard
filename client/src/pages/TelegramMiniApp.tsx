@@ -85,8 +85,9 @@ export default function TelegramMiniApp() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          aspectRatio: { ideal: 16/9 }
         }
       });
       
@@ -118,10 +119,11 @@ export default function TelegramMiniApp() {
   };
 
   const detectEdges = (imageData: ImageData, videoWidth: number, videoHeight: number): EdgeDetection => {
-    const cardX = Math.floor(videoWidth * 0.175);
-    const cardWidth = Math.floor(videoWidth * 0.65);
-    const EGYPTIAN_ID_ASPECT_RATIO = 85.60 / 53.98;
+    const EGYPTIAN_ID_ASPECT_RATIO = 1.586;
+    const frameWidthPercent = 0.80;
+    const cardWidth = Math.floor(videoWidth * frameWidthPercent);
     const cardHeight = Math.floor(cardWidth / EGYPTIAN_ID_ASPECT_RATIO);
+    const cardX = Math.floor((videoWidth - cardWidth) / 2);
     const cardY = Math.floor((videoHeight - cardHeight) / 2);
     
     const edgeThreshold = 40;
@@ -343,7 +345,7 @@ export default function TelegramMiniApp() {
                 <defs>
                   <mask id="card-mask">
                     <rect width="100" height="100" fill="white" />
-                    <rect x="15" y="28" width="70" height="44" rx="1.5" fill="black" />
+                    <rect x="10" y="25.2" width="80" height="50.4" rx="1.5" fill="black" />
                   </mask>
                 </defs>
                 
@@ -355,45 +357,45 @@ export default function TelegramMiniApp() {
                 />
                 
                 <line
-                  x1="15" y1="28"
-                  x2="85" y2="28"
+                  x1="10" y1="25.2"
+                  x2="90" y2="25.2"
                   stroke={edgesDetected.top ? '#10b981' : '#f59e0b'}
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
                 
                 <line
-                  x1="85" y1="28"
-                  x2="85" y2="72"
+                  x1="90" y1="25.2"
+                  x2="90" y2="75.6"
                   stroke={edgesDetected.right ? '#10b981' : '#f59e0b'}
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
                 
                 <line
-                  x1="85" y1="72"
-                  x2="15" y2="72"
+                  x1="90" y1="75.6"
+                  x2="10" y2="75.6"
                   stroke={edgesDetected.bottom ? '#10b981' : '#f59e0b'}
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
                 
                 <line
-                  x1="15" y1="72"
-                  x2="15" y2="28"
+                  x1="10" y1="75.6"
+                  x2="10" y2="25.2"
                   stroke={edgesDetected.left ? '#10b981' : '#f59e0b'}
                   strokeWidth="0.8"
                   strokeLinecap="round"
                 />
                 
-                <line x1="15" y1="50" x2="85" y2="50" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
-                <line x1="50" y1="28" x2="50" y2="72" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
+                <line x1="10" y1="50.4" x2="90" y2="50.4" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
+                <line x1="50" y1="25.2" x2="50" y2="75.6" stroke="rgba(255,255,255,0.2)" strokeWidth="0.15" />
                 
                 {[
-                  { x: 15, y: 28, detected: edgesDetected.top && edgesDetected.left },
-                  { x: 85, y: 28, detected: edgesDetected.top && edgesDetected.right },
-                  { x: 15, y: 72, detected: edgesDetected.bottom && edgesDetected.left },
-                  { x: 85, y: 72, detected: edgesDetected.bottom && edgesDetected.right }
+                  { x: 10, y: 25.2, detected: edgesDetected.top && edgesDetected.left },
+                  { x: 90, y: 25.2, detected: edgesDetected.top && edgesDetected.right },
+                  { x: 10, y: 75.6, detected: edgesDetected.bottom && edgesDetected.left },
+                  { x: 90, y: 75.6, detected: edgesDetected.bottom && edgesDetected.right }
                 ].map((corner, i) => (
                   <circle
                     key={i}
