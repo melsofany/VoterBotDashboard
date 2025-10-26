@@ -64,7 +64,11 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Register API routes first
+    // Register Telegram webhook BEFORE everything else to prevent route conflicts
+    const { registerTelegramWebhook } = await import("./telegram-bot");
+    registerTelegramWebhook(app);
+    
+    // Register API routes
     const server = await registerRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -101,14 +105,14 @@ app.use((req, res, next) => {
       (async () => {
         try {
           const { initializeSheets } = await import("./sheets-service");
-          const { startTelegramBot } = await import("./telegram-bot");
+          const { setupTelegramBot } = await import("./telegram-bot");
           
           log('🔄 Initializing Google Sheets...');
           await initializeSheets();
           log('✅ Google Sheets initialized');
           
           log('🤖 Starting Telegram Bot...');
-          await startTelegramBot(app);
+          await setupTelegramBot();
           log('✅ Telegram Bot started');
         } catch (error: any) {
           if (error.message && error.message.includes('No access, refresh token')) {

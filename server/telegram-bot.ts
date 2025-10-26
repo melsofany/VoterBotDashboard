@@ -25,7 +25,40 @@ interface UserSession {
 
 const sessions = new Map<number, UserSession>();
 
-export async function startTelegramBot(app?: Express) {
+// Global bot instance
+let bot: TelegramBot;
+
+// Register webhook route BEFORE other routes
+export function registerTelegramWebhook(app: Express) {
+  if (!BOT_TOKEN) {
+    console.log('⚠️ TELEGRAM_BOT_TOKEN not set, skipping webhook registration');
+    return;
+  }
+
+  const webhookPath = `/bot${BOT_TOKEN}`;
+  
+  console.log(`📝 Registering Telegram webhook route: ${webhookPath}`);
+  
+  app.post(webhookPath, express.json(), (req, res) => {
+    console.log('📨 Webhook received update:', JSON.stringify(req.body, null, 2));
+    try {
+      if (bot) {
+        bot.processUpdate(req.body);
+      } else {
+        console.log('⚠️ Bot not initialized yet, ignoring update');
+      }
+      res.sendStatus(200);
+    } catch (error) {
+      console.error('❌ Error processing update:', error);
+      res.sendStatus(500);
+    }
+  });
+  
+  console.log(`✅ Webhook route registered at ${webhookPath}`);
+}
+
+// Setup bot and configure webhook
+export async function setupTelegramBot() {
   // Determine WEBHOOK_URL from environment
   let WEBHOOK_URL = process.env.WEBHOOK_URL || '';
   
@@ -41,7 +74,7 @@ export async function startTelegramBot(app?: Express) {
   // Use webhook only if WEBHOOK_URL is explicitly set
   const USE_WEBHOOK = !!WEBHOOK_URL;
 
-  const bot = USE_WEBHOOK
+  bot = USE_WEBHOOK
     ? new TelegramBot(BOT_TOKEN)
     : new TelegramBot(BOT_TOKEN, { polling: true });
 
@@ -50,20 +83,9 @@ export async function startTelegramBot(app?: Express) {
     console.log(`📡 Webhook URL: ${WEBHOOK_URL}`);
   }
 
-  // Setup webhook endpoint if WEBHOOK_URL is set
-  if (USE_WEBHOOK && app) {
+  // Configure webhook if in webhook mode
+  if (USE_WEBHOOK) {
     const webhookPath = `/bot${BOT_TOKEN}`;
-    
-    app.post(webhookPath, express.json(), (req, res) => {
-      console.log('📨 Webhook received update:', JSON.stringify(req.body, null, 2));
-      try {
-        bot.processUpdate(req.body);
-        res.sendStatus(200);
-      } catch (error) {
-        console.error('❌ Error processing update:', error);
-        res.sendStatus(500);
-      }
-    });
 
     // Delete any existing webhook first
     try {
