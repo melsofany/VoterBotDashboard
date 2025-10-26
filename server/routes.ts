@@ -170,6 +170,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bot status endpoint - helpful for debugging
+  app.get("/api/bot/status", async (req, res) => {
+    try {
+      const TelegramBot = (await import('node-telegram-bot-api')).default;
+      const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+      
+      if (!BOT_TOKEN) {
+        return res.json({
+          status: 'error',
+          message: 'TELEGRAM_BOT_TOKEN not configured',
+          hasToken: false
+        });
+      }
+
+      const bot = new TelegramBot(BOT_TOKEN);
+      
+      // Get webhook info
+      const webhookInfo = await bot.getWebHookInfo();
+      
+      // Get bot info
+      const botInfo = await bot.getMe();
+      
+      res.json({
+        status: 'ok',
+        hasToken: true,
+        bot: {
+          id: botInfo.id,
+          username: botInfo.username,
+          first_name: botInfo.first_name
+        },
+        webhook: {
+          url: webhookInfo.url || 'Not set (using polling)',
+          has_custom_certificate: webhookInfo.has_custom_certificate,
+          pending_update_count: webhookInfo.pending_update_count,
+          last_error_date: webhookInfo.last_error_date,
+          last_error_message: webhookInfo.last_error_message,
+          max_connections: webhookInfo.max_connections
+        },
+        environment: {
+          WEBHOOK_URL: process.env.WEBHOOK_URL ? 'Set' : 'Not set',
+          RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL ? 'Set' : 'Not set',
+          mode: webhookInfo.url ? 'webhook' : 'polling'
+        }
+      });
+    } catch (error: any) {
+      console.error("Error getting bot status:", error);
+      res.status(500).json({ 
+        status: 'error',
+        message: error.message || "Failed to get bot status" 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

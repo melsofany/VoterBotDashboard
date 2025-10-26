@@ -26,7 +26,15 @@ interface UserSession {
 const sessions = new Map<number, UserSession>();
 
 export async function startTelegramBot(app?: Express) {
+  // Determine WEBHOOK_URL from environment
   let WEBHOOK_URL = process.env.WEBHOOK_URL || '';
+  
+  // Auto-detect Render URL if not set
+  if (!WEBHOOK_URL && process.env.RENDER_EXTERNAL_URL) {
+    WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL;
+    console.log(`🔍 Auto-detected Render URL: ${WEBHOOK_URL}`);
+  }
+  
   // Remove trailing slash from WEBHOOK_URL if present
   WEBHOOK_URL = WEBHOOK_URL.replace(/\/$/, '');
   
@@ -38,24 +46,49 @@ export async function startTelegramBot(app?: Express) {
     : new TelegramBot(BOT_TOKEN, { polling: true });
 
   console.log(`🤖 Telegram Bot started in ${USE_WEBHOOK ? 'WEBHOOK' : 'POLLING'} mode`);
+  if (USE_WEBHOOK) {
+    console.log(`📡 Webhook URL: ${WEBHOOK_URL}`);
+  }
 
   // Setup webhook endpoint if WEBHOOK_URL is set
   if (USE_WEBHOOK && app) {
     const webhookPath = `/bot${BOT_TOKEN}`;
     
     app.post(webhookPath, express.json(), (req, res) => {
+      console.log('📨 Webhook received update');
       bot.processUpdate(req.body);
       res.sendStatus(200);
     });
 
+    // Delete any existing webhook first
+    try {
+      await bot.deleteWebHook();
+      console.log('🗑️ Deleted existing webhook');
+    } catch (error) {
+      console.log('⚠️ No existing webhook to delete');
+    }
+
+    // Set new webhook
     try {
       const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
       await bot.setWebHook(fullWebhookUrl);
       console.log(`✅ Webhook set to: ${fullWebhookUrl}`);
+      
+      // Verify webhook was set
+      const webhookInfo = await bot.getWebHookInfo();
+      console.log('📋 Webhook info:', {
+        url: webhookInfo.url,
+        pending_update_count: webhookInfo.pending_update_count,
+        last_error_message: webhookInfo.last_error_message,
+        last_error_date: webhookInfo.last_error_date
+      });
     } catch (error) {
       console.error('❌ Failed to set webhook:', error);
       throw error;
     }
+  } else {
+    console.log('⚠️ WARNING: Running in POLLING mode. This may not work reliably on production servers like Render.');
+    console.log('💡 Set WEBHOOK_URL environment variable to use webhook mode.');
   }
 
   // Command: /start

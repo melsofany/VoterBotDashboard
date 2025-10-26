@@ -118,7 +118,14 @@ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=...   # المفتاح الخاص من ملف
 
 **ملاحظة:** 
 - على Replit: يُنصح باستخدام OAuth 2.0 (مُفعّل حالياً)
-- على Render: يمكن استخدام OAuth أو Service Account - انظر `GOOGLE_SERVICE_ACCOUNT_GUIDE.md`
+- على Render: يجب استخدام Service Account - انظر `GOOGLE_SERVICE_ACCOUNT_GUIDE.md`
+- إذا البوت لا يستجيب على Render: انظر `RENDER_SETUP.md`
+
+**مشكلة: البوت لا يستجيب على Render؟**
+- تأكد من إضافة `WEBHOOK_URL=https://your-app-name.onrender.com`
+- النظام الآن يكتشف `RENDER_EXTERNAL_URL` تلقائياً
+- افحص `/api/bot/status` للتحقق من حالة البوت
+- راجع `RENDER_SETUP.md` للحلول الكاملة
 
 ### كيفية الحصول على HUGGINGFACE_TOKEN (اختياري)
 لتحسين دقة استخراج البيانات من البطاقات:
@@ -163,6 +170,20 @@ GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=...   # المفتاح الخاص من ملف
 ## التشغيل
 
 التطبيق يعمل الآن تلقائياً عند فتح المشروع في Replit.
+
+### فحص حالة البوت
+
+للتحقق من أن البوت يعمل بشكل صحيح، افتح:
+```
+/api/bot/status
+```
+
+سيعطيك معلومات عن:
+- ✅ هل البوت متصل؟
+- ✅ هل الـ Webhook مضبوط (على Render)؟
+- ✅ معلومات البوت (اسم المستخدم، ID)
+- ✅ عدد الرسائل المعلقة
+- ✅ أخطاء الـ Webhook (إن وجدت)
 
 ### الوصول للوحة التحكم
 1. افتح الرابط الظاهر في نافذة Webview
