@@ -9,7 +9,7 @@ import {
   updateRepresentative,
   deleteRepresentative
 } from "./sheets-service";
-import { streamImageFromDrive } from "./drive-service";
+import { streamImageFromDrive, testDriveConnection } from "./drive-service";
 import { extractDataFromIDCard } from "./ocr-service";
 import { z } from 'zod';
 import { insertRepresentativeSchema } from '@shared/schema';
@@ -52,6 +52,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ user: req.user });
     } else {
       res.status(401).json({ message: 'Not authenticated' });
+    }
+  });
+
+  // Test Google Drive connection
+  app.get("/api/test-drive", isAuthenticated, async (req, res) => {
+    try {
+      const result = await testDriveConnection();
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error: any) {
+      console.error("Error testing Drive connection:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: error.message || "Failed to test Drive connection" 
+      });
     }
   });
 

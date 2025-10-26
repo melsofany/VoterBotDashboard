@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Users, BarChart3, UserCheck, LogOut } from "lucide-react";
+import { Home, Users, BarChart3, UserCheck, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient, removeAuthToken } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { path: "/voters", icon: Users, label: "الناخبون" },
     { path: "/representatives", icon: UserCheck, label: "المناديب" },
     { path: "/analytics", icon: BarChart3, label: "التحليلات" },
+    { path: "/settings", icon: Settings, label: "الإعدادات" },
   ];
 
   const handleLogout = async () => {

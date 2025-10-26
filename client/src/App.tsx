@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import Voters from "@/pages/Voters";
 import Representatives from "@/pages/Representatives";
 import Analytics from "@/pages/Analytics";
+import Settings from "@/pages/Settings";
 import Login from "@/pages/Login";
 import TelegramMiniApp from "@/pages/TelegramMiniApp";
 import GoogleAuth from "@/pages/GoogleAuth";
@@ -76,6 +77,13 @@ function Router() {
         <ProtectedRoute component={() => (
           <DashboardLayout>
             <Analytics />
+          </DashboardLayout>
+        )} />
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute component={() => (
+          <DashboardLayout>
+            <Settings />
           </DashboardLayout>
         )} />
       </Route>

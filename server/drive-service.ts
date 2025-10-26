@@ -4,6 +4,68 @@ import type { Response } from 'express';
 
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID!;
 
+export async function testDriveConnection(): Promise<{ success: boolean; message: string; email?: string }> {
+  try {
+    if (!FOLDER_ID) {
+      return {
+        success: false,
+        message: '❌ GOOGLE_DRIVE_FOLDER_ID غير معرّف في متغيرات البيئة.'
+      };
+    }
+
+    const drive = await getUncachableGoogleDriveClient();
+    const serviceEmail = await getServiceAccountEmail();
+    
+    const result = await drive.files.get({
+      fileId: FOLDER_ID,
+      fields: 'id, name, capabilities',
+      supportsAllDrives: true
+    });
+
+    const capabilities = result.data.capabilities || {};
+    
+    if (!capabilities.canAddChildren) {
+      return {
+        success: false,
+        email: serviceEmail,
+        message: `❌ Service Account (${serviceEmail}) لا يملك صلاحية إضافة ملفات للمجلد.\nتأكد من إعطائه صلاحية "Editor" وليس "Viewer".`
+      };
+    }
+
+    return {
+      success: true,
+      email: serviceEmail,
+      message: `✅ الاتصال بـ Google Drive ناجح!\nالمجلد: ${result.data.name}\nService Account: ${serviceEmail}`
+    };
+  } catch (error: any) {
+    const serviceEmail = await getServiceAccountEmail();
+    const errorMessage = error.message || '';
+    const errorCode = error.code || error.response?.status;
+
+    if (errorCode === 404) {
+      return {
+        success: false,
+        email: serviceEmail,
+        message: `❌ المجلد غير موجود أو غير مشارك!\nFolder ID: ${FOLDER_ID}\nتأكد من مشاركة المجلد مع: ${serviceEmail}`
+      };
+    }
+
+    if (errorCode === 403) {
+      return {
+        success: false,
+        email: serviceEmail,
+        message: `❌ ليس لديك صلاحية الوصول للمجلد!\nتأكد من مشاركة المجلد مع: ${serviceEmail} بصلاحية Editor`
+      };
+    }
+
+    return {
+      success: false,
+      email: serviceEmail,
+      message: `❌ خطأ في الاتصال: ${errorMessage}`
+    };
+  }
+}
+
 async function getServiceAccountEmail(): Promise<string> {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
@@ -65,17 +127,32 @@ export async function uploadImageToDrive(
   } catch (error: any) {
     console.error('❌ Error uploading to Drive:', error);
     
-    if (error.message && error.message.includes('storage quota')) {
+    const errorMessage = error.message || '';
+    const errorCode = error.code || error.response?.status;
+    
+    if (
+      errorCode === 403 ||
+      errorCode === 404 ||
+      errorMessage.includes('storage quota') ||
+      errorMessage.includes('insufficient permissions') ||
+      errorMessage.includes('File not found') ||
+      errorMessage.includes('permission') ||
+      errorMessage.includes('The user does not have sufficient permissions')
+    ) {
       const serviceEmail = await getServiceAccountEmail();
       throw new Error(
-        `❌ المجلد غير مشارك مع Service Account!\n\n` +
-        `📋 الحل:\n` +
+        `❌ المجلد غير مشارك بشكل صحيح مع Service Account!\n\n` +
+        `📋 الحل المضمون:\n` +
         `1. افتح Google Drive: https://drive.google.com/drive/folders/${FOLDER_ID}\n` +
-        `2. اضغط كليك يمين على المجلد → Share\n` +
-        `3. أضف هذا البريد: ${serviceEmail}\n` +
-        `4. اختر صلاحية: Editor\n` +
-        `5. اضغط Share\n\n` +
-        `ثم حاول مرة أخرى.`
+        `2. اضغط كليك يمين على المجلد → "مشاركة" أو "Share"\n` +
+        `3. تأكد من حذف أي مشاركات سابقة لنفس البريد إن وجدت\n` +
+        `4. أضف هذا البريد من جديد: ${serviceEmail}\n` +
+        `5. اختر صلاحية: "محرر" أو "Editor" (وليس Viewer)\n` +
+        `6. تأكد من إلغاء تحديد "Notify people" إذا لم ترغب بإرسال إشعار\n` +
+        `7. اضغط "مشاركة" أو "Share" → "تم" أو "Done"\n` +
+        `8. انتظر 30 ثانية ثم حاول مرة أخرى\n\n` +
+        `💡 نصيحة: تأكد أن المجلد ليس داخل "Shared with me" بل في "My Drive" الخاص بك\n\n` +
+        `الخطأ التقني: ${errorMessage}`
       );
     }
     
