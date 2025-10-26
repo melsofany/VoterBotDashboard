@@ -55,9 +55,14 @@ export async function startTelegramBot(app?: Express) {
     const webhookPath = `/bot${BOT_TOKEN}`;
     
     app.post(webhookPath, express.json(), (req, res) => {
-      console.log('📨 Webhook received update');
-      bot.processUpdate(req.body);
-      res.sendStatus(200);
+      console.log('📨 Webhook received update:', JSON.stringify(req.body, null, 2));
+      try {
+        bot.processUpdate(req.body);
+        res.sendStatus(200);
+      } catch (error) {
+        console.error('❌ Error processing update:', error);
+        res.sendStatus(500);
+      }
     });
 
     // Delete any existing webhook first
@@ -93,19 +98,35 @@ export async function startTelegramBot(app?: Express) {
 
   // Command: /start
   bot.onText(/\/start/, async (msg) => {
+    console.log('🎯 /start command received from user:', msg.from?.id);
     const chatId = msg.chat.id;
     const userId = msg.from?.id.toString() || '';
 
     // Check if user is authorized
-    const authorizedReps = await getAuthorizedRepresentatives();
+    console.log('🔍 Checking authorization for user:', userId);
+    let authorizedReps;
+    try {
+      authorizedReps = await getAuthorizedRepresentatives();
+      console.log('✅ Authorized representatives:', authorizedReps);
+    } catch (error) {
+      console.error('❌ Error getting authorized representatives:', error);
+      await bot.sendMessage(
+        chatId,
+        '❌ خطأ في الاتصال بقاعدة البيانات. يرجى المحاولة مرة أخرى لاحقاً.'
+      );
+      return;
+    }
     
     if (!authorizedReps.includes(userId)) {
+      console.log('⛔ User not authorized:', userId);
       await bot.sendMessage(
         chatId,
         '❌ عذراً، أنت غير مصرح لك باستخدام هذا البوت.\n\nيرجى التواصل مع المشرف لإضافة معرّفك إلى قائمة المناديب المصرح لهم.\n\nمعرّفك: ' + userId
       );
       return;
     }
+    
+    console.log('✅ User authorized, sending welcome message');
 
     // Initialize session
     sessions.set(chatId, {
