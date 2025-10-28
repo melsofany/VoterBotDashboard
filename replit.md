@@ -1,253 +1,66 @@
 # نظام إدارة بيانات الناخبين - حملة المرشح علاء سليمان الحديوي
 
-## نظرة عامة
-نظام متكامل يتكون من:
-1. **بوت تيليجرام** لجمع بيانات الناخبين من المندوبين الميدانيين
-2. **لوحة تحكم ويب** لعرض وتحليل البيانات
+## Overview
+This project is an integrated system designed for managing voter data for an election campaign. It comprises:
+1.  **Telegram Bot**: For collecting voter data from field representatives.
+2.  **Web Control Panel**: For displaying and analyzing the collected data.
 
-## البنية التقنية
+The system aims to streamline voter data collection, provide comprehensive analytics, and enhance the efficiency of election campaigns. It focuses on secure data handling, intelligent data extraction, and user-friendly interfaces for both representatives and administrators.
 
-### Frontend (React + TypeScript)
-- **الصفحات**:
-  - `/` - لوحة التحكم الرئيسية مع الإحصائيات والرسوم البيانية
-  - `/voters` - قائمة الناخبين مع البحث والتفاصيل
-  - `/representatives` - إدارة المناديب وأدائهم
-  - `/analytics` - تحليلات متقدمة
+## User Preferences
+*   All components should support Arabic language (RTL).
+*   Prioritize fast performance and optimized image processing for the Telegram Mini App.
+*   Emphasize secure data handling and restricted access to sensitive information.
+*   The system should automatically detect and configure environment variables where possible (e.g., `RENDER_EXTERNAL_URL`).
 
-- **المكونات الرئيسية**:
-  - `DashboardLayout` - التخطيط الأساسي مع التنقل
-  - جميع المكونات تدعم اللغة العربية (RTL)
+## System Architecture
 
-### Backend (Node.js + Express)
-- **Telegram Bot**: جمع البيانات من المندوبين
-- **API Routes**: نقاط نهاية للواجهة الأمامية
-- **Google Sheets Integration**: حفظ البيانات
-- **Google Drive Integration**: رفع صور البطاقات
-- **OCR Integration**: استخراج البيانات من صور البطاقات
-- **Egyptian ID Decoder**: فك تشفير الرقم القومي لاستخراج تاريخ الميلاد والمحافظة والجنس
-- **Age Calculator**: حساب العمر وتحديد كبار السن (60+)
+### UI/UX Decisions
+*   **Design System**: Material Design.
+*   **Typography**: Cairo font for Arabic text.
+*   **Theming**: Automatic dark/light mode support.
+*   **Responsiveness**: Fully responsive design for all devices, with bottom navigation for mobile and side navigation for desktop.
+*   **Web Control Panel Pages**:
+    *   `/`: Main dashboard with statistics and charts.
+    *   `/voters`: Voter list with search and details.
+    *   `/representatives`: Management and performance tracking of representatives.
+    *   `/analytics`: Advanced analytics.
 
-## تدفق عمل البوت
+### Technical Implementations
 
-### الطريقة الأولى: التطبيق المصغر (Mini App) - موصى بها ⭐
-1. **التحقق من الهوية**: المندوب يرسل /start، البوت يتحقق من معرّفه
-2. **فتح التطبيق المصغر**: الضغط على زر "📱 فتح الكاميرا الذكية"
-3. **الكاميرا الذكية المُحسّنة**: 
-   - يفتح التطبيق المصغر مع كاميرا مباشرة **بسرعة عالية** (دقة 720p محسّنة)
-   - إطار توجيهي ذكي مُعاير لحجم البطاقة المصرية (نسبة 1.57:1)
-   - **كشف ذكي للحواف** - كل حافة (علوي، أيمن، سفلي، أيسر) تتحول للأخضر بشكل منفصل
-   - مؤشرات بصرية واضحة لحالة كل حافة
-   - كشف تلقائي لجودة الصورة (الإضاءة والوضوح)
-   - **التقاط تلقائي فوري** عندما تكون جميع الحواف خضراء والصورة واضحة
-4. **OCR فوري**: استخراج البيانات مباشرة من الصورة
-5. **عرض النتائج**: الرقم القومي، الاسم، العنوان
-6. **إكمال البيانات**: الموقع، العائلة، رقم الهاتف، الموقف السياسي
-7. **الحفظ**: رفع الصورة لـ Drive وحفظ البيانات في Sheets
+*   **Frontend**: React + TypeScript.
+*   **Backend**: Node.js + Express.
+*   **Telegram Bot Workflow**:
+    *   **Mini App (Recommended)**: Secure identity verification, smart camera with guiding frame optimized for Egyptian ID cards (1.57:1 aspect ratio), intelligent edge detection with visual indicators, automatic quality assessment (lighting, clarity), and instant automatic capture.
+    *   **OCR**: Immediate OCR extraction from ID card images, displaying national ID, name, and address.
+    *   **Data Completion**: Representatives fill in location, family, phone number, and political stance.
+    *   **Saving**: Image upload to storage and data saving to Sheets.
+*   **Data Processing**:
+    *   **OCR Integration**: Extracts data from ID card images.
+    *   **Egyptian ID Decoder**: Deciphers national ID to extract birth date, governorate, and gender.
+    *   **Age Calculator**: Calculates age and identifies seniors (60+).
+*   **Security**:
+    *   Secure login for the web panel using username and password.
+    *   Authentication and authorization for Telegram bot users (representatives).
+    *   Private and protected storage of ID card images with restricted access.
 
-#### التحسينات الأخيرة (25 أكتوبر 2025):
-- ⚡ **تحسين السرعة**: تقليل دقة الكاميرا من 1080p إلى 720p لفتح أسرع للتطبيق
-- 📐 **إطار محسّن**: تعديل أبعاد الإطار لتناسب البطاقة المصرية بدقة
-- 🎯 **كشف الحواف الذكي**: كل حافة تُكتشف وتتحول للأخضر بشكل مستقل
-- 🚀 **استجابة أسرع**: تقليل فترة الفحص من 500ms إلى 300ms
-- ⚡ **OCR فائق السرعة**: تحسين استخراج البيانات ليكون أقل من 5 ثواني (بدلاً من 30-60 ثانية)
+### Feature Specifications
 
-### الطريقة الثانية: رفع صورة عادية
-1. **التحقق من الهوية**: المندوب يرسل /start
-2. **اختيار**: الضغط على "🖼️ إرسال صورة عادية"
-3. **رفع الصورة**: المندوب يرسل صورة البطاقة
-4. **OCR**: استخراج تلقائي للرقم القومي والاسم
-5. **الموقع**: مشاركة موقع الناخب
-6. **المعلومات الإضافية**: اسم العائلة، رقم الهاتف
-7. **الموقف السياسي**: مؤيد/معارض/محايد
-8. **الحفظ**: رفع الصورة لـ Drive وحفظ البيانات في Sheets
+*   **Dashboard**: Secure login, comprehensive statistics (total, supporter, opponent, neutral), senior citizen statistics (60+) with gender distribution and required vehicle calculation, gender distribution, interactive charts, advanced voter search, voter details with image and location, representative management (add, edit, delete), representative statistics with senior data, family-based analytics.
+*   **Telegram Bot**: Secure representative verification, enhanced OCR for ID cards (fast extraction, improved image processing, Arabic/Hindi digit support, 80-95% accuracy), smart national ID decoding (birth date, governorate, gender), data validation, automatic image upload, instant data saving.
 
-## نموذج البيانات
+### System Design Choices
 
-### Voters (الناخبون)
-- id, nationalId, fullName, familyName, phoneNumber
-- latitude, longitude (الموقع)
-- stance (الموقف: supporter/opponent/neutral)
-- idCardImageUrl (رابط صورة البطاقة)
-- representativeId, representativeName
-- createdAt
+*   **OAuth 2.0**: Enabled for Google integrations for easier setup, direct user account access, and enhanced security.
+*   **Data Model**:
+    *   **Voters**: `id`, `nationalId`, `fullName`, `familyName`, `phoneNumber`, `latitude`, `longitude`, `stance`, `idCardImageUrl`, `representativeId`, `representativeName`, `createdAt`.
+    *   **Representatives**: `userId`, `name`, `totalVoters`, `lastActiveAt`, senior citizen stats, gender distribution.
 
-**ملاحظة:** يتم استخراج تاريخ الميلاد والجنس والمحافظة تلقائياً من الرقم القومي
+## External Dependencies
 
-### Representatives (المناديب)
-- userId (معرّف التيليجرام)
-- name (اختياري)
-- totalVoters, lastActiveAt
-- إحصائيات كبار السن (60+) لكل مندوب
-- توزيع الجنس (ذكور/إناث)
-
-## المتغيرات البيئية المطلوبة
-
-```
-TELEGRAM_BOT_TOKEN=...                    # مطلوب ✅
-GOOGLE_SHEET_ID=...                      # مطلوب ✅
-GOOGLE_DRIVE_FOLDER_ID=...               # مطلوب ✅
-ADMIN_USERNAME=...                       # مطلوب ✅
-ADMIN_PASSWORD=...                       # مطلوب ✅
-HUGGINGFACE_TOKEN=...                    # اختياري - لكن موصى به لتحسين OCR
-
-# طرق الاتصال بـ Google (اختر طريقة واحدة):
-
-# الطريقة 1: OAuth 2.0 (مُفعّلة حالياً ✅ - الأسهل)
-GOOGLE_OAUTH_CLIENT_ID=...               # معرّف OAuth Client ✅
-GOOGLE_OAUTH_CLIENT_SECRET=...           # سر OAuth Client ✅
-
-# الطريقة 2: Service Account (للنشر على Render)
-GOOGLE_SERVICE_ACCOUNT_JSON=...          # ملف JSON كامل من Google Cloud
-
-# الطريقة 3: Service Account (البديلة)
-GOOGLE_SERVICE_ACCOUNT_EMAIL=...         # البريد الإلكتروني من ملف JSON
-GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=...   # المفتاح الخاص من ملف JSON
-```
-
-**حالة التكامل الحالية (محدّث 25 أكتوبر 2025):**
-- ✅ **OAuth 2.0 مُفعّل**: النظام الآن يستخدم OAuth بدلاً من Service Account
-- ✅ **لا حاجة لمشاركة المجلدات يدوياً**: يقوم المستخدم بتسجيل الدخول مباشرة عبر Google
-- ✅ **صفحة تسجيل الدخول**: متاحة على `/google-auth`
-- 🔑 **للبدء**: يجب زيارة `/auth/google` لتسجيل الدخول أولاً
-
-**مزايا OAuth 2.0:**
-- سهولة الإعداد (لا حاجة لـ Service Account)
-- الوصول المباشر لحساب المستخدم
-- لا حاجة لمشاركة المجلدات والملفات يدوياً
-- أمان أعلى مع إمكانية إلغاء الوصول في أي وقت
-
-**ملاحظة:** 
-- على Replit: يُنصح باستخدام OAuth 2.0 (مُفعّل حالياً)
-- على Render: يجب استخدام Service Account - انظر `GOOGLE_SERVICE_ACCOUNT_GUIDE.md`
-- إذا البوت لا يستجيب على Render: انظر `RENDER_SETUP.md`
-
-**مشكلة: البوت لا يستجيب على Render؟**
-- تأكد من إضافة `WEBHOOK_URL=https://your-app-name.onrender.com`
-- النظام الآن يكتشف `RENDER_EXTERNAL_URL` تلقائياً
-- افحص `/api/bot/status` للتحقق من حالة البوت
-- راجع `RENDER_SETUP.md` للحلول الكاملة
-
-### كيفية الحصول على HUGGINGFACE_TOKEN (اختياري)
-لتحسين دقة استخراج البيانات من البطاقات:
-1. سجل حساب مجاني في [Hugging Face](https://huggingface.co/join)
-2. اذهب إلى [Settings > Access Tokens](https://huggingface.co/settings/tokens)
-3. أنشئ token جديد (Read permissions كافية)
-4. أضفه إلى Replit Secrets باسم `HUGGINGFACE_TOKEN`
-
-**ملاحظة:** بدون Token، سيستخدم النظام Tesseract فقط (ما زال مجانياً ويعمل جيداً!)
-
-## إعداد Google Sheets
-
-### خطوات الإعداد:
-
-1. **إنشاء Google Sheet جديد**:
-   - افتح https://sheets.google.com
-   - أنشئ ملف جديد (Blank Spreadsheet)
-   - انسخ الـ ID من الرابط (الجزء بين /d/ و /edit)
-   - أضفه في متغير البيئة GOOGLE_SHEET_ID
-
-2. **مشاركة الملف**:
-   - اضغط على "Share" في الزاوية اليمنى
-   - تأكد أن الملف "Anyone with the link can view"
-   - أو قم بمشاركته مع الحساب المستخدم في Google Sheets Integration
-
-3. **إضافة معرفات المناديب**:
-   - البوت سيقوم تلقائياً بإنشاء ورقتين: "Voters" و "Representatives"
-   - بعد التشغيل الأول، افتح ورقة "Representatives"
-   - أضف معرفات المناديب بهذا الشكل:
-
-### ورقة "Representatives"
-| user_id   | name        |
-|-----------|-------------|
-| 123456789 | أحمد محمد   |
-| 987654321 | محمود علي   |
-
-**ملاحظة**: لمعرفة User ID الخاص بك في تيليجرام، أرسل رسالة لـ @userinfobot
-
-### ورقة "Voters"
-يتم ملؤها تلقائياً من البوت (لا تقم بتعديلها يدوياً)
-
-## التشغيل
-
-التطبيق يعمل الآن تلقائياً عند فتح المشروع في Replit.
-
-### فحص حالة البوت
-
-للتحقق من أن البوت يعمل بشكل صحيح، افتح:
-```
-/api/bot/status
-```
-
-سيعطيك معلومات عن:
-- ✅ هل البوت متصل؟
-- ✅ هل الـ Webhook مضبوط (على Render)؟
-- ✅ معلومات البوت (اسم المستخدم، ID)
-- ✅ عدد الرسائل المعلقة
-- ✅ أخطاء الـ Webhook (إن وجدت)
-
-### الوصول للوحة التحكم
-1. افتح الرابط الظاهر في نافذة Webview
-2. ستظهر صفحة تسجيل الدخول
-3. أدخل `ADMIN_USERNAME` و `ADMIN_PASSWORD` المحفوظين في Secrets
-4. بعد تسجيل الدخول، يمكنك الوصول لجميع صفحات لوحة التحكم
-
-### إدارة المناديب من لوحة التحكم
-1. انتقل إلى صفحة "المناديب"
-2. اضغط على "إضافة مندوب"
-3. أدخل User ID الخاص بالمندوب (من @userinfobot)
-4. أدخل اسم المندوب (اختياري)
-5. يمكنك تعديل أو حذف المناديب في أي وقت
-
-## الميزات الرئيسية
-
-### لوحة التحكم
-- ✅ **تسجيل دخول آمن** (اسم مستخدم وكلمة مرور)
-- ✅ إحصائيات شاملة (إجمالي، مؤيد، معارض، محايد)
-- ✅ **إحصائيات كبار السن (60+)** مع توزيع الجنس وحساب السيارات المطلوبة
-- ✅ **توزيع الجنس** (ذكور/إناث) للناخبين
-- ✅ رسوم بيانية تفاعلية
-- ✅ قائمة ناخبين مع بحث متقدم
-- ✅ تفاصيل كل ناخب مع الصورة والموقع
-- ✅ **إدارة المناديب** (إضافة، تعديل، حذف)
-- ✅ إحصائيات المناديب مع بيانات كبار السن لكل مندوب
-- ✅ تحليلات حسب العائلات
-- ✅ دعم كامل للغة العربية (RTL)
-
-### بوت التيليجرام
-- ✅ تحقق أمني من هوية المندوبين
-- ✅ **استخراج ذكي للبيانات من البطاقات (OCR محسّن)**
-  - ⚡ **سرعة فائقة**: استخراج البيانات في أقل من 5 ثواني
-  - 📸 معالجة محسّنة للصور للحصول على أفضل نتيجة
-  - 🇪🇬 دعم كامل للعربية والأرقام الهندية (٠-٩)
-  - 🔍 استخراج: الاسم + الرقم القومي + العنوان + المحافظة
-  - ✨ دقة 80-95% حسب جودة الصورة
-- ✅ **فك تشفير ذكي للرقم القومي** (ميزة جديدة!)
-  - 📅 استخراج تاريخ الميلاد تلقائياً من الرقم القومي
-  - 📍 تحديد المحافظة من كود المحافظة في الرقم القومي
-  - 👤 معرفة النوع (ذكر/أنثى) من آخر رقم في الرقم القومي
-  - ✨ يعمل بدون الحاجة لقراءة هذه البيانات من البطاقة
-- ✅ التحقق من صحة البيانات
-- ✅ رفع تلقائي للصور على Drive (خاص ومحمي)
-- ✅ حفظ فوري في Sheets
-- ✅ واجهة سهلة وسلسة
-
-## الأمان والخصوصية
-
-### حماية البيانات
-- 🔒 **صور البطاقات خاصة**: جميع صور بطاقات الناخبين يتم رفعها على Google Drive بصلاحيات خاصة فقط
-- 🛡️ **لا روابط عامة**: لا يمكن لأي شخص الوصول للصور بدون تسجيل دخول للحساب المصرح
-- ✅ **التحقق من المناديب**: فقط المناديب المسجلين في Google Sheets يمكنهم استخدام البوت
-- 📊 **بيانات محمية**: جميع البيانات محفوظة في Google Sheets بصلاحيات محددة
-
-### ملاحظات أمنية مهمة
-1. **لا تشارك روابط Drive**: روابط الصور في Google Sheets خاصة ولن تعمل إلا لمن لديه صلاحيات
-2. **إدارة الصلاحيات**: تأكد من أن Google Drive Folder و Google Sheet لهما صلاحيات محددة فقط
-3. **معرفات المناديب**: احذف أي مندوب غير نشط من ورقة Representatives فوراً
-
-## التصميم
-
-- نظام Material Design
-- خط Cairo للعربية
-- دعم وضع داكن/فاتح تلقائي
-- تجاوب كامل مع جميع الأجهزة
-- تنقل سفلي للموبايل، جانبي للديسكتوب
+*   **Google Sheets**: Primary database for voter and representative data.
+*   **Wasabi S3**: Cloud storage for uploading and storing ID card images (alternative to Google Drive).
+*   **Google Drive (Legacy)**: Support for older images uploaded to Google Drive.
+*   **Hugging Face (Optional)**: Used for enhanced OCR capabilities (requires `HUGGINGFACE_TOKEN`).
+*   **Telegram Bot API**: For communication with the Telegram platform.
+*   **Google OAuth 2.0**: For authentication and authorization with Google services.
