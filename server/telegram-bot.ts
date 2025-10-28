@@ -3,7 +3,7 @@ import type { Express } from 'express';
 import express from 'express';
 import { nanoid } from 'nanoid';
 import { extractDataFromIDCard } from './ocr-service';
-import { uploadImageToDrive } from './drive-service';
+import { uploadImageToWasabi } from './wasabi-service';
 import { addVoter, getAuthorizedRepresentatives } from './sheets-service';
 import sharp from 'sharp';
 
@@ -612,8 +612,8 @@ export async function setupTelegramBot() {
 
       const stance = query.data.replace('stance_', '');
 
-      // Upload image to Drive
-      const imageUrl = await uploadImageToDrive(session.photoBuffer!, session.nationalId!);
+      // Upload image to Wasabi
+      const imageUrl = await uploadImageToWasabi(session.photoBuffer!, session.nationalId!);
 
       // Save to Google Sheets
       await addVoter({

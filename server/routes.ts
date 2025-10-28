@@ -9,7 +9,8 @@ import {
   updateRepresentative,
   deleteRepresentative
 } from "./sheets-service";
-import { streamImageFromDrive, testDriveConnection } from "./drive-service";
+import { streamImageFromWasabi, testWasabiConnection } from "./wasabi-service";
+import { streamImageFromDrive } from "./drive-service";
 import { extractDataFromIDCard } from "./ocr-service";
 import { z } from 'zod';
 import { insertRepresentativeSchema } from '@shared/schema';
@@ -55,20 +56,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test Google Drive connection
-  app.get("/api/test-drive", isAuthenticated, async (req, res) => {
+  // Test Wasabi connection
+  app.get("/api/test-storage", isAuthenticated, async (req, res) => {
     try {
-      const result = await testDriveConnection();
+      const result = await testWasabiConnection();
       if (result.success) {
         res.json(result);
       } else {
         res.status(500).json(result);
       }
     } catch (error: any) {
-      console.error("Error testing Drive connection:", error);
+      console.error("Error testing Wasabi connection:", error);
       res.status(500).json({ 
         success: false, 
-        message: error.message || "Failed to test Drive connection" 
+        message: error.message || "Failed to test Wasabi connection" 
       });
     }
   });
@@ -170,7 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Image proxy route - serves images from Google Drive
+  // Image proxy route - serves images from Wasabi or Google Drive (legacy)
   app.get("/api/voters/:id/card-image", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
@@ -181,7 +182,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Image not found" });
       }
       
-      await streamImageFromDrive(voter.idCardImageUrl, res);
+      // Check if it's a Google Drive URL (legacy) or Wasabi URL
+      if (voter.idCardImageUrl.includes('drive.google.com')) {
+        await streamImageFromDrive(voter.idCardImageUrl, res);
+      } else {
+        await streamImageFromWasabi(voter.idCardImageUrl, res);
+      }
     } catch (error: any) {
       console.error("Error serving image:", error);
       res.status(500).json({ error: "Failed to load image" });
