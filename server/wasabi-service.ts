@@ -8,7 +8,7 @@ const WASABI_REGION = process.env.WASABI_REGION!;
 const WASABI_ENDPOINT = process.env.WASABI_ENDPOINT!;
 
 const s3Client = new S3Client({
-  endpoint: `https://${WASABI_ENDPOINT}`,
+  endpoint: WASABI_ENDPOINT,
   region: WASABI_REGION,
   credentials: {
     accessKeyId: WASABI_ACCESS_KEY,
@@ -81,7 +81,7 @@ export async function uploadImageToWasabi(
       })
     );
 
-    const publicUrl = `https://${WASABI_BUCKET_NAME}.${WASABI_ENDPOINT}/${key}`;
+    const publicUrl = `${WASABI_ENDPOINT}/${WASABI_BUCKET_NAME}/${key}`;
 
     console.log('✅ Image uploaded to Wasabi:', nationalId);
     return publicUrl;

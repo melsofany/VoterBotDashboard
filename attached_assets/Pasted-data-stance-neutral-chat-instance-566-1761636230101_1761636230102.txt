@@ -1,0 +1,52 @@
+data": "stance_neutral"
+            }
+          ]
+        ]
+      }
+    },
+    "chat_instance": "5660274230069517428",
+    "data": "stance_supporter"
+  }
+}
+❌ Error uploading to Wasabi: Error: getaddrinfo ENOTFOUND nationalids.https
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+  errno: -3008,
+  code: 'ENOTFOUND',
+  syscall: 'getaddrinfo',
+  hostname: 'nationalids.https',
+  '$metadata': { attempts: 3, totalRetryDelay: 210 }
+}
+Error saving voter: Error: ❌ فشل رفع الصورة إلى Wasabi!
+تأكد من:
+1. صحة معلومات الاتصال (Access Key, Secret Key)
+2. وجود الـ Bucket: nationalids
+3. صلاحيات الكتابة على الـ Bucket
+الخطأ التقني: getaddrinfo ENOTFOUND nationalids.https
+    at uploadImageToWasabi (file:///opt/render/project/src/dist/index.js:715:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async TelegramBot.<anonymous> (file:///opt/render/project/src/dist/index.js:1455:24)
+🔍 Detailed error for voter saving: {
+  nationalId: '29407113300177',
+  phoneNumber: '01022282802',
+  error: '❌ فشل رفع الصورة إلى Wasabi!\n' +
+    '\n' +
+    'تأكد من:\n' +
+    '1. صحة معلومات الاتصال (Access Key, Secret Key)\n' +
+    '2. وجود الـ Bucket: nationalids\n' +
+    '3. صلاحيات الكتابة على الـ Bucket\n' +
+    '\n' +
+    'الخطأ التقني: getaddrinfo ENOTFOUND nationalids.https',
+  stack: 'Error: ❌ فشل رفع الصورة إلى Wasabi!\n' +
+    '\n' +
+    'تأكد من:\n' +
+    '1. صحة معلومات الاتصال (Access Key, Secret Key)\n' +
+    '2. وجود الـ Bucket: nationalids\n' +
+    '3. صلاحيات الكتابة على الـ Bucket\n' +
+    '\n' +
+    'الخطأ التقني: getaddrinfo ENOTFOUND nationalids.https\n' +
+    '    at uploadImageToWasabi (file:///opt/render/project/src/dist/index.js:715:11)\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n' +
+    '    at async TelegramBot.<anonymous> (file:///opt/render/project/src/dist/index.js:1455:24)'
+}
+==> Detected service running on port 10000
+==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
