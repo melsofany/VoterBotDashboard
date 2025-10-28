@@ -72,60 +72,79 @@ export async function initializeSheets() {
       // Sheet is empty, create new headers
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range: `${VOTERS_SHEET}!A1:L1`,
+        range: `${VOTERS_SHEET}!A1:K1`,
         valueInputOption: 'RAW',
         requestBody: {
           values: [[
             'ID', 'National ID', 'Full Name', 'Family Name', 'Phone Number',
-            'Latitude', 'Longitude', 'Address', 'Stance', 'ID Card Image URL',
+            'Location Link', 'Address', 'Stance', 'ID Card Image URL',
             'Representative ID', 'Created At'
           ]]
         }
       });
-    } else if (votersData.data.values[0].length === 11) {
-      // Old format detected (11 columns), migrate to new format (12 columns)
-      console.log('🔄 Migrating Google Sheets to include Address column...');
+    } else if (votersData.data.values[0].length === 12 || votersData.data.values[0].length === 11) {
+      // Old format detected (with Latitude/Longitude), migrate to new format (with Location Link)
+      console.log('🔄 Migrating Google Sheets to use Location Link instead of Latitude/Longitude...');
       
       // Get all existing data
       const allData = await sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
-        range: `${VOTERS_SHEET}!A:K`,
+        range: `${VOTERS_SHEET}!A:L`,
       });
       
       if (allData.data.values && allData.data.values.length > 0) {
-        // Transform all rows to include empty address column at position 7 (index 7)
+        // Transform all rows to use Location Link instead of Latitude/Longitude
         const migratedRows = allData.data.values.map((row, index) => {
           if (index === 0) {
             // Update header row
             return [
               'ID', 'National ID', 'Full Name', 'Family Name', 'Phone Number',
-              'Latitude', 'Longitude', 'Address', 'Stance', 'ID Card Image URL',
+              'Location Link', 'Address', 'Stance', 'ID Card Image URL',
               'Representative ID', 'Created At'
             ];
           } else {
-            // Insert empty address column for data rows
-            const newRow = [...row];
-            newRow.splice(7, 0, ''); // Insert empty string at position 7
-            return newRow;
+            // Convert Latitude (row[5]) and Longitude (row[6]) to Location Link
+            const latitude = row[5] || '';
+            const longitude = row[6] || '';
+            let locationLink = '';
+            
+            if (latitude && longitude) {
+              locationLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+            }
+            
+            // Create new row with Location Link instead of Latitude/Longitude
+            return [
+              row[0] || '', // ID
+              row[1] || '', // National ID
+              row[2] || '', // Full Name
+              row[3] || '', // Family Name
+              row[4] || '', // Phone Number
+              locationLink, // Location Link
+              row[7] || '', // Address
+              row[8] || '', // Stance
+              row[9] || '', // ID Card Image URL
+              row[10] || '', // Representative ID
+              row[11] || '' // Created At
+            ];
           }
         });
         
         // Clear old data and write migrated data
         await sheets.spreadsheets.values.clear({
           spreadsheetId: SHEET_ID,
-          range: `${VOTERS_SHEET}!A:K`,
+          range: `${VOTERS_SHEET}!A:L`,
         });
         
         await sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
-          range: `${VOTERS_SHEET}!A1:L${migratedRows.length}`,
+          range: `${VOTERS_SHEET}!A1:K${migratedRows.length}`,
           valueInputOption: 'RAW',
           requestBody: {
             values: migratedRows
           }
         });
         
-        console.log(`✅ Migrated ${migratedRows.length - 1} voter rows to new format`);
+        console.log(`✅ Migrated ${migratedRows.length - 1} voter rows to Location Link format`);
       }
     }
 
@@ -185,14 +204,19 @@ export async function addVoter(voter: Omit<Voter, 'createdAt'> & { createdAt?: D
       throw new Error(`رقم الهاتف ${voter.phoneNumber} موجود بالفعل في النظام`);
     }
     
+    // Create location link from latitude and longitude
+    let locationLink = '';
+    if (voter.latitude && voter.longitude) {
+      locationLink = `https://www.google.com/maps?q=${voter.latitude},${voter.longitude}`;
+    }
+    
     const values = [[
       voter.id,
       voter.nationalId,
       voter.fullName,
       voter.familyName,
       voter.phoneNumber,
-      voter.latitude?.toString() || '',
-      voter.longitude?.toString() || '',
+      locationLink,
       voter.address || '',
       voter.stance,
       voter.idCardImageUrl || '',
@@ -202,7 +226,7 @@ export async function addVoter(voter: Omit<Voter, 'createdAt'> & { createdAt?: D
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${VOTERS_SHEET}!A:L`,
+      range: `${VOTERS_SHEET}!A:K`,
       valueInputOption: 'RAW',
       requestBody: { values }
     });
@@ -219,25 +243,41 @@ export async function getAllVoters(): Promise<Voter[]> {
     const sheets = await getUncachableGoogleSheetClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${VOTERS_SHEET}!A2:L`,
+      range: `${VOTERS_SHEET}!A2:K`,
     });
 
     const rows = response.data.values || [];
-    return rows.map(row => ({
-      id: row[0] || '',
-      nationalId: row[1] || '',
-      fullName: row[2] || '',
-      familyName: row[3] || '',
-      phoneNumber: row[4] || '',
-      latitude: row[5] ? parseFloat(row[5]) : null,
-      longitude: row[6] ? parseFloat(row[6]) : null,
-      address: row[7] || null,
-      stance: row[8] || 'neutral',
-      idCardImageUrl: row[9] || null,
-      representativeId: row[10] || '',
-      representativeName: null, // Name is not stored in voters sheet
-      createdAt: row[11] ? new Date(row[11]) : new Date(),
-    }));
+    return rows.map(row => {
+      // Extract latitude and longitude from location link
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      
+      const locationLink = row[5] || '';
+      if (locationLink) {
+        // Parse Google Maps URL: https://www.google.com/maps?q=31.351594,27.249837
+        const match = locationLink.match(/q=([-\d.]+),([-\d.]+)/);
+        if (match) {
+          latitude = parseFloat(match[1]);
+          longitude = parseFloat(match[2]);
+        }
+      }
+      
+      return {
+        id: row[0] || '',
+        nationalId: row[1] || '',
+        fullName: row[2] || '',
+        familyName: row[3] || '',
+        phoneNumber: row[4] || '',
+        latitude: latitude,
+        longitude: longitude,
+        address: row[6] || null,
+        stance: row[7] || 'neutral',
+        idCardImageUrl: row[8] || null,
+        representativeId: row[9] || '',
+        representativeName: null, // Name is not stored in voters sheet
+        createdAt: row[10] ? new Date(row[10]) : new Date(),
+      };
+    });
   } catch (error) {
     console.error('Error getting voters from sheets:', error);
     return [];
