@@ -29,20 +29,26 @@ export default function Voters() {
 
   const updateNationalIdMutation = useMutation({
     mutationFn: async ({ voterId, nationalId }: { voterId: string; nationalId: string }) => {
-      await apiRequest(`/api/voters/${voterId}/national-id`, {
+      const response = await apiRequest(`/api/voters/${voterId}/national-id`, {
         method: "PATCH",
         body: JSON.stringify({ nationalId }),
       });
+      return response;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/voters"] });
+      if (selectedVoter) {
+        setSelectedVoter({ ...selectedVoter, nationalId: variables.nationalId });
+      }
       setIsEditingNationalId(false);
+      setNewNationalId("");
       toast({
         title: "تم التحديث بنجاح",
         description: "تم تحديث الرقم القومي في قاعدة البيانات",
       });
     },
     onError: (error: any) => {
+      console.error("Error updating national ID:", error);
       toast({
         title: "خطأ",
         description: error.message || "فشل تحديث الرقم القومي",
