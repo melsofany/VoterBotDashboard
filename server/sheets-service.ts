@@ -484,3 +484,41 @@ async function getSheetId(sheetName: string): Promise<number> {
   
   return sheet.properties.sheetId;
 }
+
+export async function updateVoterNationalId(voterId: string, newNationalId: string): Promise<void> {
+  try {
+    const sheets = await getUncachableGoogleSheetClient();
+    
+    const existingVoters = await getAllVoters();
+    const duplicate = existingVoters.find(v => v.nationalId === newNationalId && v.id !== voterId);
+    if (duplicate) {
+      throw new Error(`الرقم القومي ${newNationalId} موجود بالفعل لناخب آخر في النظام`);
+    }
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${VOTERS_SHEET}!A2:A`,
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0] === voterId);
+    
+    if (rowIndex === -1) {
+      throw new Error('الناخب غير موجود');
+    }
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${VOTERS_SHEET}!B${rowIndex + 2}`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[newNationalId]]
+      }
+    });
+
+    console.log('✅ National ID updated in Google Sheets:', voterId, '->', newNationalId);
+  } catch (error) {
+    console.error('❌ Error updating national ID in sheets:', error);
+    throw error;
+  }
+}

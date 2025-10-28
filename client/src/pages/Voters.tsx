@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, MapPin, Phone, Users as UsersIcon, Calendar } from "lucide-react";
+import { Search, MapPin, Phone, Users as UsersIcon, Calendar, Edit2, Check, X } from "lucide-react";
 import { Voter } from "@shared/schema";
 import {
   Dialog,
@@ -12,15 +12,43 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getAuthToken } from "@/lib/queryClient";
+import { getAuthToken, apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Voters() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedVoter, setSelectedVoter] = useState<Voter | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isEditingNationalId, setIsEditingNationalId] = useState(false);
+  const [newNationalId, setNewNationalId] = useState("");
+  const { toast } = useToast();
 
   const { data: voters = [], isLoading } = useQuery<Voter[]>({
     queryKey: ["/api/voters"],
+  });
+
+  const updateNationalIdMutation = useMutation({
+    mutationFn: async ({ voterId, nationalId }: { voterId: string; nationalId: string }) => {
+      await apiRequest(`/api/voters/${voterId}/national-id`, {
+        method: "PATCH",
+        body: JSON.stringify({ nationalId }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voters"] });
+      setIsEditingNationalId(false);
+      toast({
+        title: "تم التحديث بنجاح",
+        description: "تم تحديث الرقم القومي في قاعدة البيانات",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ",
+        description: error.message || "فشل تحديث الرقم القومي",
+        variant: "destructive",
+      });
+    },
   });
 
   useEffect(() => {
@@ -186,7 +214,16 @@ export default function Voters() {
       </div>
 
       {/* Voter Detail Dialog */}
-      <Dialog open={!!selectedVoter} onOpenChange={() => setSelectedVoter(null)}>
+      <Dialog 
+        open={!!selectedVoter} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedVoter(null);
+            setIsEditingNationalId(false);
+            setNewNationalId("");
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-2xl">تفاصيل الناخب</DialogTitle>
@@ -220,9 +257,66 @@ export default function Voters() {
 
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">الرقم القومي</p>
-                  <p className="text-lg font-semibold" dir="ltr">
-                    {selectedVoter.nationalId}
-                  </p>
+                  {isEditingNationalId ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="text"
+                        value={newNationalId}
+                        onChange={(e) => setNewNationalId(e.target.value)}
+                        maxLength={14}
+                        dir="ltr"
+                        className="text-lg font-semibold"
+                        placeholder="14 رقم"
+                        data-testid="input-edit-national-id"
+                        autoFocus
+                      />
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => {
+                          if (selectedVoter && newNationalId.length === 14) {
+                            updateNationalIdMutation.mutate({
+                              voterId: selectedVoter.id,
+                              nationalId: newNationalId,
+                            });
+                          }
+                        }}
+                        disabled={updateNationalIdMutation.isPending || newNationalId.length !== 14}
+                        data-testid="button-save-national-id"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsEditingNationalId(false);
+                          setNewNationalId("");
+                        }}
+                        disabled={updateNationalIdMutation.isPending}
+                        data-testid="button-cancel-edit"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="text-lg font-semibold" dir="ltr">
+                        {selectedVoter.nationalId}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsEditingNationalId(true);
+                          setNewNationalId(selectedVoter.nationalId);
+                        }}
+                        data-testid="button-edit-national-id"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">

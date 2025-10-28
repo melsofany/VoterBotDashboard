@@ -7,7 +7,8 @@ import {
   getRepresentativesPerformance,
   addRepresentative,
   updateRepresentative,
-  deleteRepresentative
+  deleteRepresentative,
+  updateVoterNationalId
 } from "./sheets-service";
 import { streamImageFromWasabi, testWasabiConnection } from "./wasabi-service";
 import { streamImageFromDrive } from "./drive-service";
@@ -146,6 +147,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error deleting representative:", error);
       res.status(500).json({ error: error.message || "Failed to delete representative" });
+    }
+  });
+
+  // Voter management routes
+  app.patch("/api/voters/:id/national-id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nationalId } = req.body;
+      
+      if (!nationalId || typeof nationalId !== 'string') {
+        return res.status(400).json({ error: "الرقم القومي مطلوب" });
+      }
+
+      if (nationalId.length !== 14 || !/^\d+$/.test(nationalId)) {
+        return res.status(400).json({ error: "الرقم القومي يجب أن يكون 14 رقم" });
+      }
+
+      await updateVoterNationalId(id, nationalId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating voter national ID:", error);
+      res.status(500).json({ error: error.message || "Failed to update national ID" });
     }
   });
 
