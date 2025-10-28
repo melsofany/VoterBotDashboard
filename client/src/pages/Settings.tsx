@@ -22,7 +22,7 @@ export default function Settings() {
         success: boolean;
         message: string;
         email?: string;
-      }>('GET', '/api/test-drive');
+      }>('/api/test-drive');
       
       setTestResult(data);
     } catch (error: any) {

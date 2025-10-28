@@ -42,7 +42,10 @@ export default function Representatives() {
 
   const addMutation = useMutation({
     mutationFn: async (data: { userId: string; name?: string }) => {
-      return await apiRequest("POST", "/api/representatives", data);
+      return await apiRequest("/api/representatives", {
+        method: "POST",
+        body: JSON.stringify(data)
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/representatives"] });
@@ -65,7 +68,10 @@ export default function Representatives() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: { userId: string; name: string }) => {
-      return await apiRequest("PUT", `/api/representatives/${data.userId}`, { name: data.name });
+      return await apiRequest(`/api/representatives/${data.userId}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: data.name })
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/representatives"] });
@@ -87,7 +93,9 @@ export default function Representatives() {
 
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return await apiRequest("DELETE", `/api/representatives/${userId}`);
+      return await apiRequest(`/api/representatives/${userId}`, {
+        method: "DELETE"
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/representatives"] });

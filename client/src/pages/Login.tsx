@@ -20,8 +20,10 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const res = await apiRequest('POST', '/api/login', { username, password });
-      const data = await res.json();
+      const data = await apiRequest<{ success: boolean; token?: string }>('/api/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+      });
 
       if (data.success && data.token) {
         setAuthToken(data.token);

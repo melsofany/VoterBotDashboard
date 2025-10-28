@@ -22,7 +22,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const handleLogout = async () => {
     try {
-      await apiRequest('POST', '/api/logout');
+      await apiRequest('/api/logout', { method: 'POST' });
       removeAuthToken();
       await queryClient.invalidateQueries({ queryKey: ['/api/me'] });
       toast({
