@@ -199,11 +199,6 @@ export async function addVoter(voter: Omit<Voter, 'createdAt'> & { createdAt?: D
       throw new Error(`الرقم القومي ${voter.nationalId} موجود بالفعل في النظام`);
     }
     
-    const duplicatePhone = existingVoters.find(v => v.phoneNumber === voter.phoneNumber);
-    if (duplicatePhone) {
-      throw new Error(`رقم الهاتف ${voter.phoneNumber} موجود بالفعل في النظام`);
-    }
-    
     // Create location link from latitude and longitude
     let locationLink = '';
     if (voter.latitude && voter.longitude) {
