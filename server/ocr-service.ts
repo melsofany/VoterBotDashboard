@@ -1,14 +1,9 @@
-import { createWorker } from 'tesseract.js';
+import { GoogleGenAI } from "@google/genai";
 import sharp from 'sharp';
 import { decodeEgyptianID, type DecodedEgyptianID } from './egyptian-id-decoder';
 
-const HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN;
-
-const HUGGINGFACE_OCR_MODELS = [
-  'https://api-inference.huggingface.co/models/facebook/nougat-base',
-  'https://api-inference.huggingface.co/models/microsoft/trocr-base-printed',
-  'https://api-inference.huggingface.co/models/microsoft/trocr-large-printed'
-];
+// Using Gemini AI for OCR - Blueprint: javascript_gemini
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export interface OCRResult {
   nationalId: string | null;
@@ -35,305 +30,180 @@ function convertArabicNumeralsToLatin(text: string): string {
   return text.replace(/[٠-٩]/g, (match) => arabicToLatinMap[match] || match);
 }
 
-async function preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
-  try {
-    return await sharp(imageBuffer)
-      .resize(3000, null, { 
-        fit: 'inside',
-        withoutEnlargement: false
-      })
-      .grayscale()
-      .normalize()
-      .linear(1.5, -(128 * 1.5) + 128)
-      .sharpen({ sigma: 2 })
-      .threshold(128)
-      .toBuffer();
-  } catch (error) {
-    console.log('⚠️ Image preprocessing failed, using original');
-    return imageBuffer;
-  }
-}
-
-async function preprocessImageForEgyptianID(imageBuffer: Buffer): Promise<Buffer[]> {
-  try {
-    const baseImage = sharp(imageBuffer);
-    const metadata = await baseImage.metadata();
-    
-    const variations: Buffer[] = [];
-    
-    variations.push(
-      await sharp(imageBuffer)
-        .resize(4500, null, { fit: 'inside', withoutEnlargement: false })
-        .grayscale()
-        .normalize()
-        .linear(1.8, -(128 * 1.8) + 128)
-        .sharpen({ sigma: 2.5 })
-        .toBuffer()
-    );
-    
-    variations.push(
-      await sharp(imageBuffer)
-        .resize(5000, null, { fit: 'inside', withoutEnlargement: false })
-        .grayscale()
-        .normalize()
-        .linear(2.2, -(128 * 2.2) + 128)
-        .sharpen({ sigma: 3 })
-        .threshold(110)
-        .toBuffer()
-    );
-    
-    variations.push(
-      await sharp(imageBuffer)
-        .resize(4000, null, { fit: 'inside', withoutEnlargement: false })
-        .grayscale()
-        .median(2)
-        .normalize()
-        .linear(2.0, -(128 * 2.0) + 128)
-        .sharpen({ sigma: 2.8 })
-        .toBuffer()
-    );
-    
-    variations.push(
-      await sharp(imageBuffer)
-        .resize(4200, null, { fit: 'inside', withoutEnlargement: false })
-        .grayscale()
-        .normalize()
-        .clahe({ width: 8, height: 8, maxSlope: 3 })
-        .sharpen({ sigma: 2.5 })
-        .toBuffer()
-    );
-    
-    variations.push(
-      await sharp(imageBuffer)
-        .resize(4800, null, { fit: 'inside', withoutEnlargement: false })
-        .grayscale()
-        .normalize()
-        .linear(1.9, -(128 * 1.9) + 128)
-        .blur(0.3)
-        .sharpen({ sigma: 3.5 })
-        .toBuffer()
-    );
-    
-    return variations;
-  } catch (error) {
-    console.log('⚠️ Enhanced preprocessing failed, using basic');
-    return [await preprocessImage(imageBuffer)];
-  }
-}
-
-async function extractWithHuggingFace(imageBuffer: Buffer): Promise<string | null> {
-  if (!HUGGINGFACE_TOKEN) {
-    console.log('⚠️ Hugging Face token not available, skipping HF OCR');
-    return null;
-  }
-
-  for (const modelUrl of HUGGINGFACE_OCR_MODELS) {
-    try {
-      console.log(`🤖 Trying Hugging Face OCR with ${modelUrl.split('/').pop()}...`);
-      
-      const response = await fetch(modelUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${HUGGINGFACE_TOKEN}`,
-          'Content-Type': 'image/jpeg',
-        },
-        body: imageBuffer
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log(`⚠️ Model ${modelUrl.split('/').pop()} error ${response.status}:`, errorText);
-        continue;
-      }
-
-      const result = await response.json();
-      console.log('✅ Hugging Face OCR response:', result);
-      
-      let extractedText = null;
-      if (typeof result === 'string') {
-        extractedText = result;
-      } else if (result && result[0] && result[0].generated_text) {
-        extractedText = result[0].generated_text;
-      } else if (Array.isArray(result) && result.length > 0) {
-        extractedText = result.map(r => r.generated_text || '').join(' ');
-      }
-      
-      if (extractedText && extractedText.length > 10) {
-        console.log(`✅ Successfully extracted text using ${modelUrl.split('/').pop()}`);
-        return extractedText;
-      }
-    } catch (error) {
-      console.log(`❌ Model ${modelUrl.split('/').pop()} failed:`, error);
-      continue;
-    }
-  }
-  
-  console.log('⚠️ All Hugging Face models failed');
-  return null;
-}
-
 export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRResult> {
   try {
+    // Check if Gemini API key is available
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('❌ GEMINI_API_KEY is not set');
+      return {
+        nationalId: null,
+        fullName: null,
+        address: null,
+        text: 'GEMINI_API_KEY is required for OCR processing',
+        decodedInfo: null
+      };
+    }
+
     const startTime = Date.now();
-    console.log('⚡ Starting FAST OCR processing for Egyptian ID...');
+    console.log('⚡ Starting Gemini AI OCR processing...');
     
+    // Preprocess image for better OCR results
     const processedImage = await sharp(imageBuffer)
       .resize(2000, null, { fit: 'inside', withoutEnlargement: false })
-      .grayscale()
-      .normalize()
-      .linear(1.8, -(128 * 1.8) + 128)
-      .sharpen({ sigma: 2 })
+      .jpeg({ quality: 95 })
       .toBuffer();
     
     console.log(`✅ Image preprocessed in ${Date.now() - startTime}ms`);
     
     const ocrStart = Date.now();
-    const worker = await createWorker('ara+eng', 1, {
-      logger: () => {}
-    });
     
-    await worker.setParameters({
-      tessedit_pageseg_mode: '6',
-      preserve_interword_spaces: '1',
-      tessedit_char_whitelist: '0123456789٠١٢٣٤٥٦٧٨٩أبتثجحخدذرزسشصضطظعغفقكلمنهويىةآإؤئءًٌٍَُِّْٓ /.-',
-      tessedit_ocr_engine_mode: '1'
-    });
-    
-    const { data: { text: tesseractText } } = await worker.recognize(processedImage);
-    await worker.terminate();
-    
-    console.log(`✅ OCR completed in ${Date.now() - ocrStart}ms`);
-    
-    const combinedText = tesseractText;
-    console.log('📄 Combined OCR Text:', combinedText.substring(0, 600));
+    // Use Gemini Vision API to extract text from ID card
+    const systemPrompt = `أنت خبير في قراءة وتحليل البطاقات الشخصية المصرية. 
+مهمتك:
+1. استخراج الرقم القومي (14 رقم فقط بدون أي فواصل أو مسافات)
+2. استخراج الاسم الكامل (بالعربية)
+3. استخراج العنوان (إن وجد)
 
-    const normalizedText = convertArabicNumeralsToLatin(combinedText);
+قواعد مهمة:
+- الرقم القومي يجب أن يكون 14 رقم بالضبط
+- يجب تحويل الأرقام العربية (٠-٩) إلى لاتينية (0-9)
+- الرد يجب أن يكون بصيغة JSON فقط
+- لا تضف أي نص إضافي خارج JSON
 
-    let nationalId: string | null = null;
-    
-    const allDigits = normalizedText.replace(/[^\d]/g, '');
-    console.log('🔢 All digits extracted:', allDigits);
-    
-    const allNumberSequences = normalizedText.match(/[\d\s\.\-\/]{14,30}/g) || [];
-    const candidates: string[] = [];
-    
-    for (const seq of allNumberSequences) {
-      const cleaned = seq.replace(/[^\d]/g, '');
-      if (cleaned.length >= 14) {
-        for (let i = 0; i <= cleaned.length - 14; i++) {
-          candidates.push(cleaned.substring(i, i + 14));
-        }
+مثال على البطاقة المصرية:
+- الرقم القومي يبدأ بـ 2 أو 3 (القرن)
+- يتبعه 6 أرقام (تاريخ الميلاد: سنة، شهر، يوم)
+- ثم رقمان للمحافظة
+- ثم 5 أرقام أخرى`;
+
+    const contents = [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `اقرأ هذه الصورة واستخرج:
+1. الرقم القومي (14 رقم فقط)
+2. الاسم الكامل 
+3. العنوان
+
+الرد يجب أن يكون JSON فقط بهذا الشكل:
+{
+  "nationalId": "29501011234567",
+  "fullName": "محمد أحمد علي حسن",
+  "address": "القاهرة - مصر الجديدة"
+}
+
+ملاحظة: إذا لم تجد أي حقل، ضع null`
+          },
+          {
+            inlineData: {
+              data: processedImage.toString("base64"),
+              mimeType: "image/jpeg",
+            },
+          },
+        ]
       }
-    }
-    
-    if (allDigits.length >= 14) {
-      for (let i = 0; i <= allDigits.length - 14; i++) {
-        candidates.push(allDigits.substring(i, i + 14));
-      }
-    }
-    
-    console.log('🔍 National ID candidates:', candidates.slice(0, 10));
-    
-    for (const candidate of candidates) {
-      if (candidate.startsWith('1') || candidate.startsWith('2') || candidate.startsWith('3')) {
-        const century = parseInt(candidate.substring(0, 1));
-        const year = parseInt(candidate.substring(1, 3));
-        const month = parseInt(candidate.substring(3, 5));
-        const day = parseInt(candidate.substring(5, 7));
-        
-        if (century >= 1 && century <= 3 && 
-            month >= 1 && month <= 12 && 
-            day >= 1 && day <= 31 && 
-            year >= 0 && year <= 99) {
-          nationalId = candidate;
-          console.log('✅ Found valid national ID:', nationalId);
-          break;
-        }
-      }
-    }
-
-    const lines = combinedText.split('\n').filter(line => line.trim());
-    let fullName: string | null = null;
-    let address: string | null = null;
-
-    const commonWords = [
-      'مصر', 'جمهورية', 'محافظة', 'بطاقة', 'العربية', 'العنوان', 'الرقم', 
-      'القومي', 'الاسم', 'تاريخ', 'الميلاد', 'الجنس', 'الديانة',
-      'المهنة', 'الحالة', 'الاجتماعية', 'وزارة', 'الداخلية', 'مصلحة', 
-      'الاحوال', 'المدنية', 'شخصية', 'قومية', 'بطاقه'
-    ];
-    
-    const governorateKeywords = [
-      'القاهرة', 'الجيزة', 'الإسكندرية', 'الدقهلية', 'البحيرة', 'الفيوم', 
-      'الغربية', 'الإسماعيلية', 'المنوفية', 'المنيا', 'القليوبية', 'الوادي الجديد',
-      'الشرقية', 'السويس', 'أسوان', 'أسيوط', 'بني سويف', 'بورسعيد',
-      'دمياط', 'الأقصر', 'قنا', 'كفر الشيخ', 'مطروح',
-      'شمال سيناء', 'جنوب سيناء', 'البحر الأحمر', 'سوهاج', 'مطروح'
     ];
 
-    const arabicLines = lines
-      .filter(line => /[\u0600-\u06FF]/.test(line))
-      .map(line => line.replace(/[^\u0600-\u06FF\s]/g, ' ').replace(/\s+/g, ' ').trim())
-      .filter(line => line.length >= 4);
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: contents,
+      config: {
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            nationalId: { type: "string", nullable: true },
+            fullName: { type: "string", nullable: true },
+            address: { type: "string", nullable: true },
+          },
+          required: ["nationalId", "fullName", "address"],
+        },
+      },
+    });
+
+    console.log(`✅ Gemini OCR completed in ${Date.now() - ocrStart}ms`);
     
-    console.log('📝 Arabic lines found:', arabicLines.length);
-    arabicLines.forEach((line, i) => console.log(`  Line ${i}: "${line}"`));
-    
-    const nameCandidates: { text: string; score: number }[] = [];
-    
-    for (const line of arabicLines) {
-      const words = line.split(/\s+/);
-      
-      if (words.length < 2 || words.length > 6) continue;
-      
-      const hasCommonWord = commonWords.some(word => line.includes(word));
-      const hasGovernorate = governorateKeywords.some(gov => line.includes(gov));
-      
-      if (hasCommonWord || hasGovernorate) continue;
-      
-      const validWords = words.filter(word => word.length >= 2);
-      
-      if (validWords.length >= 2) {
-        let score = validWords.length;
-        
-        if (validWords.length === 3) score += 2;
-        if (validWords.length === 4) score += 3;
-        
-        if (line.length > 10 && line.length < 50) score += 1;
-        
-        nameCandidates.push({
-          text: validWords.join(' '),
-          score
-        });
-      }
+    // Get text from response (it's a method in @google/genai v1.28.0)
+    const rawJson = typeof response.text === 'function' ? response.text() : response.text;
+    console.log('📄 Gemini Response (first 200 chars):', rawJson ? rawJson.substring(0, 200) : rawJson);
+
+    // Verify we received a valid string
+    if (!rawJson || typeof rawJson !== 'string') {
+      console.error('❌ Invalid response from Gemini - type:', typeof rawJson);
+      console.error('❌ Full response object:', JSON.stringify(response, null, 2).substring(0, 500));
+      return {
+        nationalId: null,
+        fullName: null,
+        address: null,
+        text: '',
+        decodedInfo: null
+      };
     }
+
+    let extractedData: { nationalId: string | null; fullName: string | null; address: string | null };
     
-    nameCandidates.sort((a, b) => b.score - a.score);
-    
-    console.log('👤 Name candidates:', nameCandidates.slice(0, 5));
-    
-    if (nameCandidates.length > 0) {
-      fullName = nameCandidates[0].text;
-      console.log('✅ Selected name:', fullName);
+    try {
+      extractedData = JSON.parse(rawJson);
+    } catch (parseError) {
+      console.error('❌ Failed to parse Gemini response:', parseError);
+      console.error('Raw response:', rawJson);
+      return {
+        nationalId: null,
+        fullName: null,
+        address: null,
+        text: rawJson || '',
+        decodedInfo: null
+      };
     }
-    
-    for (const line of lines) {
-      for (const gov of governorateKeywords) {
-        if (line.includes(gov)) {
-          const addressLine = line
-            .replace(/محافظة|العنوان|عنوان|:/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          if (addressLine.length >= 4 && addressLine.length <= 100) {
-            address = addressLine;
-            console.log('✅ Found address:', address);
-            break;
+
+    // Convert Arabic numerals to Latin in national ID
+    let nationalId = extractedData.nationalId;
+    if (nationalId) {
+      nationalId = convertArabicNumeralsToLatin(nationalId);
+      // Remove any non-digit characters
+      nationalId = nationalId.replace(/[^\d]/g, '');
+      
+      // Validate that it's exactly 14 digits
+      if (nationalId.length !== 14) {
+        console.log(`⚠️ Invalid national ID length: ${nationalId.length} (expected 14)`);
+        
+        // Try to find a 14-digit sequence in the extracted text
+        const allDigits = nationalId;
+        if (allDigits.length >= 14) {
+          // Look for valid national ID patterns (starting with 1, 2, or 3)
+          for (let i = 0; i <= allDigits.length - 14; i++) {
+            const candidate = allDigits.substring(i, i + 14);
+            if (candidate.startsWith('1') || candidate.startsWith('2') || candidate.startsWith('3')) {
+              const century = parseInt(candidate.substring(0, 1));
+              const month = parseInt(candidate.substring(3, 5));
+              const day = parseInt(candidate.substring(5, 7));
+              
+              if (century >= 1 && century <= 3 && 
+                  month >= 1 && month <= 12 && 
+                  day >= 1 && day <= 31) {
+                nationalId = candidate;
+                console.log('✅ Found valid 14-digit national ID:', nationalId);
+                break;
+              }
+            }
           }
         }
+        
+        // If still not 14 digits, set to null
+        if (nationalId.length !== 14) {
+          nationalId = null;
+        }
       }
-      if (address) break;
     }
 
+    const fullName = extractedData.fullName;
+    const address = extractedData.address;
+
+    // Decode national ID if valid
     let decodedInfo: DecodedEgyptianID | null = null;
     if (nationalId) {
       decodedInfo = decodeEgyptianID(nationalId);
@@ -341,10 +211,13 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
         console.log('✅ Decoded ID Info:', {
           birthDate: decodedInfo.birthDate,
           governorate: decodedInfo.governorate,
-          gender: decodedInfo.gender
+          gender: decodedInfo.gender,
+          century: decodedInfo.century
         });
       } else {
         console.log('⚠️ National ID could not be decoded or is invalid');
+        // If decoding failed, the national ID is probably invalid
+        nationalId = null;
       }
     }
 
@@ -356,11 +229,11 @@ export async function extractDataFromIDCard(imageBuffer: Buffer): Promise<OCRRes
       nationalId,
       fullName,
       address,
-      text: combinedText.substring(0, 500),
+      text: rawJson || '',
       decodedInfo
     };
   } catch (error) {
-    console.error('❌ OCR Error:', error);
+    console.error('❌ Gemini OCR Error:', error);
     return {
       nationalId: null,
       fullName: null,
